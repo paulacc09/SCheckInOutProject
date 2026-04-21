@@ -27,8 +27,18 @@ const login = async (req, res) => {
     if (usuario.intentos_fallidos >= 5)
       return error(res, 'Cuenta bloqueada. Contacta al administrador', 403);
 
-    const passwordValida = await bcrypt.compare(password, usuario.password_hash);
+    console.log("BODY:", req.body);
+      console.log("PASSWORD RECIBIDA:", `"${password}"`);
+      console.log("HASH BD:", usuario.password_hash);
 
+      const passwordLimpia = password.trim();
+
+      const passwordValida = await bcrypt.compare(
+        passwordLimpia,
+        usuario.password_hash
+      );
+
+console.log("RESULTADO COMPARE:", passwordValida);
     if (!passwordValida) {
       await pool.execute(
         `UPDATE usuarios SET intentos_fallidos = intentos_fallidos + 1 WHERE id = ?`,
