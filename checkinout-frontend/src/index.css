@@ -1,3 +1,173 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ===========================================================
+   CHECKINOUT - DESIGN TOKENS
+   Paleta basada en mockups Figma (azul corporativo + neutros)
+   =========================================================== */
+:root {
+  --co-primary: #1e3a8a;        /* azul oscuro - headers, sidebar */
+  --co-primary-600: #1d4ed8;
+  --co-primary-500: #2563eb;
+  --co-primary-50: #eff6ff;
+
+  --co-accent: #f59e0b;         /* dorado/ambar para acentos */
+
+  --co-success: #16a34a;
+  --co-success-bg: #dcfce7;
+  --co-warning: #f59e0b;
+  --co-warning-bg: #fef3c7;
+  --co-danger: #dc2626;
+  --co-danger-bg: #fee2e2;
+  --co-info: #0ea5e9;
+  --co-info-bg: #e0f2fe;
+
+  --co-bg: #f5f7fb;             /* fondo general */
+  --co-surface: #ffffff;        /* cards/tablas */
+  --co-border: #e5e7eb;
+  --co-text: #0f172a;
+  --co-text-muted: #64748b;
+
+  --co-sidebar-bg: #0f1f4d;     /* sidebar azul muy oscuro */
+  --co-sidebar-hover: #1e3a8a;
+  --co-sidebar-active: #2563eb;
+  --co-sidebar-text: #cbd5e1;
+  --co-sidebar-text-active: #ffffff;
+}
+
+/* Reset / base */
+* {
+  box-sizing: border-box;
+}
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--co-bg);
+  color: var(--co-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar fina */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ===== Componentes reutilizables ===== */
+@layer components {
+  /* Botones */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    background: var(--co-primary);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--co-primary-600); }
+
+  .btn-accent {
+    background: var(--co-accent);
+    color: #fff;
+  }
+  .btn-accent:hover { filter: brightness(0.95); }
+
+  .btn-outline {
+    @apply border;
+    border-color: var(--co-border);
+    background: #fff;
+    color: var(--co-text);
+  }
+  .btn-outline:hover { background: #f8fafc; }
+
+  .btn-danger {
+    background: var(--co-danger);
+    color: #fff;
+  }
+  .btn-danger:hover { filter: brightness(0.95); }
+
+  /* Inputs */
+  .input, .select, .textarea {
+    @apply w-full rounded-lg border px-3 py-2 text-sm outline-none transition;
+    border-color: var(--co-border);
+    background: #fff;
+    color: var(--co-text);
+  }
+  .input:focus, .select:focus, .textarea:focus {
+    border-color: var(--co-primary-500);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+
+  .label {
+    @apply block text-sm font-medium mb-1;
+    color: var(--co-text);
+  }
+
+  /* Cards */
+  .card {
+    @apply rounded-xl bg-white shadow-sm border;
+    border-color: var(--co-border);
+  }
+  .card-header {
+    @apply px-6 py-4 border-b;
+    border-color: var(--co-border);
+  }
+  .card-body { @apply px-6 py-4; }
+
+  /* Tablas */
+  .table-wrap {
+    @apply overflow-x-auto rounded-xl border bg-white;
+    border-color: var(--co-border);
+  }
+  .table {
+    @apply min-w-full text-sm;
+  }
+  .table thead {
+    background: #f8fafc;
+  }
+  .table th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider;
+    color: var(--co-text-muted);
+  }
+  .table td {
+    @apply px-4 py-3 border-t;
+    border-color: var(--co-border);
+  }
+  .table tbody tr:hover { background: #f8fafc; }
+
+  /* Badges de estado */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-success { background: var(--co-success-bg); color: var(--co-success); }
+  .badge-warning { background: var(--co-warning-bg); color: #92400e; }
+  .badge-danger  { background: var(--co-danger-bg);  color: var(--co-danger); }
+  .badge-info    { background: var(--co-info-bg);    color: #075985; }
+  .badge-muted   { background: #f1f5f9; color: var(--co-text-muted); }
+
+  /* Page layout */
+  .page-title {
+    @apply text-2xl font-bold;
+    color: var(--co-text);
+  }
+  .page-subtitle {
+    @apply text-sm;
+    color: var(--co-text-muted);
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply rounded-xl bg-white p-5 border;
+    border-color: var(--co-border);
+  }
+  .stat-value {
+    @apply text-3xl font-bold;
+    color: var(--co-primary);
+  }
+  .stat-label {
+    @apply text-xs uppercase tracking-wider mt-1;
+    color: var(--co-text-muted);
+  }
+}
