@@ -1,97 +1,112 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { NavLink } from "react-router-dom";
+import {
+  LayoutGrid, Users, Building2, MonitorSmartphone, ClipboardList,
+  FileBarChart2, FileText, Settings, ShieldCheck, AlertTriangle,
+  ArrowLeftRight, UserCircle2, LogOut
+} from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
-const menuAdmin = [
-  { to: '/admin/obras', label: 'Mis Obras' },
-  { to: '/admin/personal', label: 'Gestión Personal' },
-  { to: '/admin/asistencias', label: 'Asistencias' },
-  { to: '/admin/reportes', label: 'Reportes' },
-  { to: '/admin/dispositivos', label: 'Dispositivos' },
-  { to: '/admin/documentos', label: 'Documentos' },
-]
+const NAV = {
+  administrador: [
+    { to: "/admin/obras",          label: "Mis Obras",         icon: Building2 },
+    { to: "/admin/personal",       label: "Gestión Personal",  icon: Users },
+    { to: "/admin/dispositivos",   label: "Dispositivos",      icon: MonitorSmartphone },
+    { to: "/admin/asistencias",    label: "Asistencias",       icon: ClipboardList },
+    { to: "/admin/reportes",       label: "Reportes",          icon: FileBarChart2 },
+    { to: "/admin/documentos",     label: "Documentos",        icon: FileText },
+    { to: "/admin/configuracion",  label: "Configuración",     icon: Settings },
+  ],
+  inspector_sst: [
+    { to: "/sst/asistencia",  label: "Asistencia",      icon: ClipboardList },
+    { to: "/sst/personal",    label: "Personal en obra",icon: Users },
+    { to: "/sst/novedades",   label: "Novedades",       icon: AlertTriangle },
+    { to: "/sst/reportes",    label: "Reportes",        icon: FileBarChart2 },
+    { to: "/sst/documentos",  label: "Documentos",      icon: FileText },
+  ],
+  encargado: [
+    { to: "/encargado/asistencia", label: "Asistencia", icon: ClipboardList },
+    { to: "/encargado/personal",   label: "Personal",   icon: Users },
+    { to: "/encargado/novedades",  label: "Novedades",  icon: AlertTriangle },
+    { to: "/encargado/traspasos",  label: "Traspasos",  icon: ArrowLeftRight },
+  ],
+};
 
-const menuInspector = [
-  { to: '/inspector/asistencia', label: 'Asistencia' },
-  { to: '/inspector/personal', label: 'Personal en obra' },
-  { to: '/inspector/novedades', label: 'Novedades' },
-  { to: '/inspector/reportes', label: 'Reportes' },
-  { to: '/inspector/documentos', label: 'Documentos' },
-]
-
-const menuEncargado = [
-  { to: '/encargado/asistencia', label: 'Asistencia' },
-  { to: '/encargado/personal', label: 'Personal en obra' },
-  { to: '/encargado/novedades', label: 'Novedades' },
-  { to: '/encargado/traspasos', label: 'Traspasos' },
-]
-
-const rolesMenu = {
-  administrador: menuAdmin,
-  inspector_sst: menuInspector,
-  encargado: menuEncargado,
-}
+const TITULO_ROL = {
+  administrador: "ADMINISTRATIVO",
+  inspector_sst: "INSPECTOR SST",
+  encargado: "ENCARGADO",
+};
 
 export default function Sidebar() {
-  const { usuario, logout } = useAuth()
-  const navigate = useNavigate()
-  const menu = rolesMenu[usuario?.rol] || []
-
-  const perfilPath = usuario?.rol === 'administrador'
-    ? '/admin/perfil'
-    : usuario?.rol === 'inspector_sst'
-    ? '/inspector/perfil'
-    : '/encargado/perfil'
-
-  const configPath = usuario?.rol === 'administrador' ? '/admin/configuracion' : null
+  const { usuario, logout } = useAuth();
+  if (!usuario) return null;
+  const items = NAV[usuario.rol] || [];
 
   return (
-    <aside className="w-64 min-h-screen bg-white border-r border-gray-200 flex flex-col">
-      {/* Logo */}
-      <div className="p-5 border-b border-gray-100">
-        <div className="flex flex-col items-center gap-1">
-          <div className="w-16 h-16 rounded-full bg-[#2d5fa6] flex items-center justify-center">
-            <span className="text-white text-xs font-bold text-center leading-tight">CHECK<br/>INOUT</span>
+    <aside
+      className="flex flex-col w-64 min-h-screen text-slate-200"
+      style={{ background: "var(--co-sidebar-bg)" }}
+    >
+      {/* Branding */}
+      <div className="px-5 py-5 border-b border-white/10">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-white" />
           </div>
-          <span className="text-[11px] text-gray-500 text-center leading-tight mt-1">
-            Control de Asistencia y Personal<br/>en Obras de Construcción
-          </span>
+          <div>
+            <div className="text-white font-bold leading-tight">CHECKINOUT</div>
+            <div className="text-[10px] tracking-wider text-slate-400">
+              {TITULO_ROL[usuario.rol] || ""}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-4 px-3 space-y-1">
-        {menu.map((item) => (
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {items.map(({ to, label, icon: Icon }) => (
           <NavLink
-            key={item.to}
-            to={item.to}
+            key={to}
+            to={to}
             className={({ isActive }) =>
-              `block px-4 py-2.5 rounded-lg text-sm transition-colors ${
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 isActive
-                  ? 'bg-[#2d5fa6] text-white font-medium'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-300 hover:bg-white/5 hover:text-white"
               }`
             }
           >
-            {item.label}
+            <Icon className="w-4 h-4 shrink-0" />
+            <span>{label}</span>
           </NavLink>
         ))}
       </nav>
 
-      {/* Footer */}
-      <div className="p-3 border-t border-gray-100 space-y-1">
-        {configPath && (
-          <NavLink
-            to={configPath}
-            className={({ isActive }) =>
-              `block px-4 py-2.5 rounded-lg text-sm transition-colors ${
-                isActive ? 'bg-[#2d5fa6] text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`
-            }
-          >
-            Configuración
-          </NavLink>
-        )}
+      {/* Footer usuario */}
+      <div className="px-3 py-3 border-t border-white/10">
+        <NavLink
+          to={
+            usuario.rol === "administrador" ? "/admin/perfil"
+            : usuario.rol === "inspector_sst" ? "/sst/perfil"
+            : "/encargado/perfil"
+          }
+          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5"
+        >
+          <UserCircle2 className="w-7 h-7 text-slate-300" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-white truncate">
+              {usuario.nombre} {usuario.apellido}
+            </div>
+            <div className="text-[11px] text-slate-400 truncate">{usuario.email}</div>
+          </div>
+        </NavLink>
+        <button
+          onClick={logout}
+          className="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+        >
+          <LogOut className="w-4 h-4" /> Cerrar sesión
+        </button>
       </div>
     </aside>
-  )
+  );
 }

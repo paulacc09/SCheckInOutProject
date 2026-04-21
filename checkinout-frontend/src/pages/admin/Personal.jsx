@@ -1,190 +1,168 @@
-import { useState, useEffect } from 'react'
-import Layout from '../../components/Layout'
-import Modal from '../../components/Modal'
-import api from '../../api/axios'
+import { useEffect, useState } from "react";
+import { Plus, Search, Loader2, Pencil, AlertCircle } from "lucide-react";
+import api from "../../api/axios";
+import TopBar from "../../components/TopBar";
+import Modal from "../../components/Modal";
+import EmptyState from "../../components/EmptyState";
 
-export default function AdminPersonal() {
-  const [trabajadores, setTrabajadores] = useState([])
-  const [buscar, setBuscar] = useState('')
-  const [cargando, setCargando] = useState(true)
-  const [modalCrear, setModalCrear] = useState(false)
-  const [modalEditar, setModalEditar] = useState(false)
-  const [seleccionado, setSeleccionado] = useState(null)
+export default function Personal() {
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [q, setQ] = useState("");
+  const [estado, setEstado] = useState("");
+  const [openModal, setOpenModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    nombre: '', apellido: '', cedula: '', telefono: '',
-    email: '', subcargo_id: '', estado: 'activo'
-  })
-  const [guardando, setGuardando] = useState(false)
-  const [error, setError] = useState('')
+    nombre: "", apellido: "", cedula: "", telefono: "",
+    email: "", subcargo_id: "", estado: "activo",
+  });
 
-  useEffect(() => { cargarTrabajadores() }, [])
-
-  async function cargarTrabajadores() {
+  const cargar = async () => {
+    setLoading(true);
+    setError("");
     try {
-      setCargando(true)
-      const res = await api.get('/trabajadores')
-      setTrabajadores(res.data.data || [])
-    } catch {
-      setTrabajadores([])
+      const { data } = await api.get("/trabajadores");
+      setTrabajadores(data.trabajadores || data.data || data || []);
+    } catch (err) {
+      setError(err.response?.data?.mensaje || "No se pudo cargar el personal");
     } finally {
-      setCargando(false)
+      setLoading(false);
     }
-  }
+  };
+  useEffect(() => { cargar(); }, []);
 
-  async function guardarTrabajador() {
-    setError('')
-    setGuardando(true)
-    try {
-      if (modalEditar && seleccionado) {
-        await api.put(`/trabajadores/${seleccionado.id}`, form)
-      } else {
-        await api.post('/trabajadores', form)
-      }
-      setModalCrear(false)
-      setModalEditar(false)
-      setSeleccionado(null)
-      setForm({ nombre: '', apellido: '', cedula: '', telefono: '', email: '', subcargo_id: '', estado: 'activo' })
-      cargarTrabajadores()
-    } catch (e) {
-      setError(e.response?.data?.message || 'Error al guardar')
-    } finally {
-      setGuardando(false)
-    }
-  }
-
-  function abrirEditar(t) {
-    setSeleccionado(t)
+  const abrirCrear = () => {
+    setEditing(null);
+    setForm({ nombre: "", apellido: "", cedula: "", telefono: "", email: "", subcargo_id: "", estado: "activo" });
+    setOpenModal(true);
+  };
+  const abrirEditar = (t) => {
+    setEditing(t);
     setForm({
-      nombre: t.nombre || '', apellido: t.apellido || '',
-      cedula: t.cedula || '', telefono: t.telefono || '',
-      email: t.email || '', subcargo_id: t.subcargo_id || '',
-      estado: t.estado || 'activo'
-    })
-    setModalEditar(true)
-  }
+      nombre: t.nombre || "", apellido: t.apellido || "", cedula: t.cedula || "",
+      telefono: t.telefono || "", email: t.email || "",
+      subcargo_id: t.subcargo_id || "", estado: t.estado || "activo",
+    });
+    setOpenModal(true);
+  };
 
-  const filtrados = trabajadores.filter(t =>
-    `${t.nombre} ${t.apellido}`.toLowerCase().includes(buscar.toLowerCase()) ||
-    t.cedula?.includes(buscar)
-  )
+  const onGuardar = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (editing) await api.put(`/trabajadores/${editing.id}`, form);
+      else await api.post("/trabajadores", form);
+      setOpenModal(false);
+      await cargar();
+    } catch (err) {
+      alert(err.response?.data?.mensaje || "Error al guardar trabajador");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const FormTrabajador = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
-          <input className="input-field" value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} placeholder="Nombres" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Apellidos</label>
-          <input className="input-field" value={form.apellido} onChange={e => setForm({...form, apellido: e.target.value})} placeholder="Apellidos" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Tipo documento</label>
-          <select className="input-field">
-            <option>Cédula</option>
-            <option>Pasaporte</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Nº documento</label>
-          <input className="input-field" value={form.cedula} onChange={e => setForm({...form, cedula: e.target.value})} placeholder="Número" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
-          <input className="input-field" value={form.telefono} onChange={e => setForm({...form, telefono: e.target.value})} placeholder="Celular" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Estado</label>
-          <select className="input-field" value={form.estado} onChange={e => setForm({...form, estado: e.target.value})}>
+  const filtrados = trabajadores.filter((t) => {
+    const txt = q.toLowerCase();
+    const okQ = !txt ||
+      `${t.nombre} ${t.apellido}`.toLowerCase().includes(txt) ||
+      (t.cedula || "").toLowerCase().includes(txt);
+    const okEstado = !estado || t.estado === estado;
+    return okQ && okEstado;
+  });
+
+  return (
+    <>
+      <TopBar
+        title="Gestión Personal"
+        subtitle="Administra los trabajadores de tu empresa"
+        right={<button onClick={abrirCrear} className="btn btn-primary"><Plus className="w-4 h-4" /> Registrar Trabajador</button>}
+      />
+      <div className="p-6 space-y-4">
+        <div className="card card-body flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} className="input pl-9" placeholder="Buscar por nombre o cédula…" />
+          </div>
+          <select className="select sm:w-40" value={estado} onChange={(e) => setEstado(e.target.value)}>
+            <option value="">Todos los estados</option>
             <option value="activo">Activo</option>
             <option value="inactivo">Inactivo</option>
           </select>
         </div>
-        <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Correo electrónico</label>
-          <input className="input-field" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="correo@empresa.com" />
-        </div>
-      </div>
-      {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded">{error}</p>}
-      <div className="flex gap-3 justify-end mt-2">
-        <button className="btn-secondary" onClick={() => { setModalCrear(false); setModalEditar(false) }}>Cancelar</button>
-        <button className="btn-primary" onClick={guardarTrabajador} disabled={guardando}>
-          {guardando ? 'Guardando...' : 'Registrar'}
-        </button>
-      </div>
-    </div>
-  )
 
-  return (
-    <Layout>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-gray-800">Gestión Personal</h2>
-        <button onClick={() => setModalCrear(true)} className="btn-primary flex items-center gap-2">
-          <span className="text-lg leading-none">+</span> Registrar Trabajador
-        </button>
-      </div>
-
-      <div className="card">
-        <div className="p-4 border-b border-gray-100 flex gap-3">
-          <div className="relative flex-1 max-w-xs">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-            <input className="input-field pl-8" placeholder="Buscar" value={buscar} onChange={e => setBuscar(e.target.value)} />
+        {loading ? (
+          <div className="card card-body flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : error ? (
+          <div className="card card-body flex items-center gap-2 text-red-600"><AlertCircle className="w-5 h-5" /> {error}</div>
+        ) : filtrados.length === 0 ? (
+          <div className="card">
+            <EmptyState title="Sin trabajadores" message="Aún no has registrado personal." action={
+              <button onClick={abrirCrear} className="btn btn-primary"><Plus className="w-4 h-4" /> Registrar trabajador</button>
+            }/>
           </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="table-header">ID</th>
-                <th className="table-header">Nombre</th>
-                <th className="table-header">Documento</th>
-                <th className="table-header">Cargo</th>
-                <th className="table-header">Obra</th>
-                <th className="table-header">Estado</th>
-                <th className="table-header">Editar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cargando ? (
-                <tr><td colSpan={7} className="table-cell text-center text-gray-400 py-8">Cargando...</td></tr>
-              ) : filtrados.length === 0 ? (
-                <tr><td colSpan={7} className="table-cell text-center text-gray-400 py-8">No hay trabajadores</td></tr>
-              ) : filtrados.map(t => (
-                <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="table-cell text-[#2d5fa6]">{t.id}</td>
-                  <td className="table-cell text-[#2d5fa6]">{t.nombre} {t.apellido}</td>
-                  <td className="table-cell text-[#2d5fa6]">{t.cedula}</td>
-                  <td className="table-cell">{t.subcargo_nombre || '—'}</td>
-                  <td className="table-cell">—</td>
-                  <td className="table-cell">
-                    <span className={t.estado === 'activo' ? 'badge-activo' : 'badge-inactivo'}>
-                      {t.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="table-cell">
-                    <button onClick={() => abrirEditar(t)} className="text-gray-400 hover:text-[#2d5fa6]">✏️</button>
-                  </td>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>ID</th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Estado</th><th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtrados.map((t) => (
+                  <tr key={t.id}>
+                    <td className="text-slate-500">{t.id}</td>
+                    <td className="font-medium text-slate-800">{t.nombre} {t.apellido}</td>
+                    <td className="font-mono text-xs">{t.cedula}</td>
+                    <td className="text-slate-600">{t.subcargo_nombre || t.cargo || "—"}</td>
+                    <td>
+                      <span className={t.estado === "activo" ? "badge badge-success" : "badge badge-muted"}>
+                        {t.estado}
+                      </span>
+                    </td>
+                    <td>
+                      <button onClick={() => abrirEditar(t)} className="p-1.5 rounded-lg hover:bg-slate-100" title="Editar">
+                        <Pencil className="w-4 h-4 text-slate-600" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {modalCrear && (
-        <Modal titulo="Registrar nuevo trabajador" subtitulo="Datos personales, asignación y biometría" onClose={() => setModalCrear(false)}>
-          <FormTrabajador />
-        </Modal>
-      )}
-      {modalEditar && (
-        <Modal titulo="Editar trabajador" subtitulo="Datos personales, asignación y biometría" onClose={() => setModalEditar(false)}>
-          <FormTrabajador />
-        </Modal>
-      )}
-    </Layout>
-  )
+      <Modal
+        open={openModal}
+        onClose={() => setOpenModal(false)}
+        title={editing ? "Editar trabajador" : "Registrar trabajador"}
+        size="lg"
+        footer={
+          <>
+            <button onClick={() => setOpenModal(false)} className="btn btn-outline">Cancelar</button>
+            <button onClick={onGuardar} disabled={saving} className="btn btn-primary">
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />} {editing ? "Guardar cambios" : "Registrar"}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={onGuardar} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div><label className="label">Nombres</label><input className="input" required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} /></div>
+          <div><label className="label">Apellidos</label><input className="input" required value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} /></div>
+          <div><label className="label">N° documento</label><input className="input" required value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })} /></div>
+          <div><label className="label">Teléfono</label><input className="input" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} /></div>
+          <div className="sm:col-span-2"><label className="label">Correo</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+          <div>
+            <label className="label">Estado</label>
+            <select className="select" value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })}>
+              <option value="activo">Activo</option><option value="inactivo">Inactivo</option>
+            </select>
+          </div>
+        </form>
+      </Modal>
+    </>
+  );
 }

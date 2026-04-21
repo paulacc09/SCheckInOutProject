@@ -1,58 +1,54 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import api from '../api/axios'
+import { createContext, useContext, useEffect, useState } from "react";
+import api from "../api/axios";
 
-const AuthContext = createContext(null)
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [usuario, setUsuario] = useState(null)
-  const [cargando, setCargando] = useState(true)
+  const [usuario, setUsuario] = useState(null);
+  const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  // Hidrata desde localStorage
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    const user = localStorage.getItem('usuario')
-
-    if (token && user) {
-      try {
-        setUsuario(JSON.parse(user))
-      } catch {
-        localStorage.removeItem('token')
-        localStorage.removeItem('usuario')
-      }
+    const t = localStorage.getItem("checkinout_token");
+    const u = localStorage.getItem("checkinout_user");
+    if (t && u) {
+      setToken(t);
+      try { setUsuario(JSON.parse(u)); } catch { /* noop */ }
     }
+    setLoading(false);
+  }, []);
 
-    setCargando(false)
-  }, [])
+  const login = async (email, password) => {
+    const { data } = await api.post("/auth/login", { email, password });
+    // Esperado: { token, usuario: { id, nombre, apellido, email, rol, ... } }
+    const t = data.token;
+    const u = data.usuario || data.user;
+    if (!t || !u) throw new Error("Respuesta de login inválida");
 
-  // 🔥 LOGIN CORREGIDO
-  async function login(email, password) {
-    const res = await api.post('/auth/login', {
-      email,
-      password
-    })
+    localStorage.setItem("checkinout_token", t);
+    localStorage.setItem("checkinout_user", JSON.stringify(u));
+    setToken(t);
+    setUsuario(u);
+    return u;
+  };
 
-    const { token, usuario: user } = res.data.data
-
-    localStorage.setItem('token', token)
-    localStorage.setItem('usuario', JSON.stringify(user))
-
-    setUsuario(user)
-
-    return user
-  }
-
-  function logout() {
-    localStorage.removeItem('token')
-    localStorage.removeItem('usuario')
-    setUsuario(null)
-  }
+  const logout = () => {
+    localStorage.removeItem("checkinout_token");
+    localStorage.removeItem("checkinout_user");
+    setToken(null);
+    setUsuario(null);
+  };
 
   return (
-    <AuthContext.Provider value={{ usuario, login, logout, cargando }}>
-      {!cargando && children}
+    <AuthContext.Provider value={{ usuario, token, login, logout, loading }}>
+      {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
-export function useAuth() {
-  return useContext(AuthContext)
-}
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth debe usarse dentro de <AuthProvider>");
+  return ctx;
+};
