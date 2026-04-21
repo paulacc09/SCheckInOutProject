@@ -20,16 +20,23 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
-    const { data } = await api.post("/auth/login", { email, password });
-    // Esperado: { token, usuario: { id, nombre, apellido, email, rol, ... } }
-    const t = data.token;
-    const u = data.usuario || data.user;
+    const res = await api.post("/auth/login", { email, password });
+
+    console.log("RESPUESTA LOGIN:", res.data);
+
+    const payload = res.data.data; // 🔥 AQUÍ ESTÁ EL CAMBIO
+
+    const t = payload.token;
+    const u = payload.usuario;
+
     if (!t || !u) throw new Error("Respuesta de login inválida");
 
     localStorage.setItem("checkinout_token", t);
     localStorage.setItem("checkinout_user", JSON.stringify(u));
+
     setToken(t);
     setUsuario(u);
+
     return u;
   };
 
