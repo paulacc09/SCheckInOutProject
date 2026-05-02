@@ -12,6 +12,7 @@ app.use(express.json());
 app.use('/api/auth', require('./src/routes/auth.routes'));
 app.use('/api/trabajadores', require('./src/routes/trabajadores.routes'));
 app.use('/api/obras', require('./src/routes/obras.routes'));
+app.use('/api/subcargos', require('./src/routes/subcargos.routes'));
 app.use('/api/asistencia', require('./src/routes/asistencia.routes'));
 app.use('/api/reportes', require('./src/routes/reportes.routes'));
 

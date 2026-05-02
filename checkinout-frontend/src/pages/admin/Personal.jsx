@@ -6,6 +6,13 @@ import Modal from "../../components/Modal";
 import EmptyState from "../../components/EmptyState";
 
 export default function Personal() {
+  const nombreApellidoRegex = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]{2,50}$/;
+  const cedulaRegex = /^\d{5,15}$/;
+  const telefonoRegex = /^\d{7,15}$/;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const tiposDocumentoValidos = ["CC", "CE", "Pasaporte", "TI", "PEP"];
+  const sexosValidos = ["M", "F", "Otro"];
+
   const [trabajadores, setTrabajadores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -14,10 +21,80 @@ export default function Personal() {
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [errores, setErrores] = useState({});
+  const [subcargos, setSubcargos] = useState([]);
+  const [obras, setObras] = useState([]);
   const [form, setForm] = useState({
     nombre: "", apellido: "", cedula: "", telefono: "",
     email: "", subcargo_id: "", estado: "activo",
+    tipo_documento: "CC", fecha_nacimiento: "", sexo: "", obra_id: "",
   });
+
+  const validarFormulario = () => {
+    const nuevosErrores = {};
+    const nombreLimpio = form.nombre.trim();
+    const apellidoLimpio = form.apellido.trim();
+    const cedulaLimpia = form.cedula.trim();
+    const telefonoLimpio = form.telefono.trim();
+    const emailLimpio = form.email.trim();
+    const fechaNacimientoLimpia = form.fecha_nacimiento.trim();
+
+    if (!nombreApellidoRegex.test(nombreLimpio)) {
+      nuevosErrores.nombre = "El nombre debe tener 2 a 50 caracteres y solo letras y espacios.";
+    }
+    if (!nombreApellidoRegex.test(apellidoLimpio)) {
+      nuevosErrores.apellido = "El apellido debe tener 2 a 50 caracteres y solo letras y espacios.";
+    }
+    if (!cedulaRegex.test(cedulaLimpia)) {
+      nuevosErrores.cedula = "La cédula debe tener solo números y entre 5 y 15 dígitos.";
+    }
+    if (telefonoLimpio && !telefonoRegex.test(telefonoLimpio)) {
+      nuevosErrores.telefono = "El teléfono debe tener solo números y entre 7 y 15 dígitos.";
+    }
+    if (emailLimpio && !emailRegex.test(emailLimpio)) {
+      nuevosErrores.email = "El correo debe tener un formato válido.";
+    }
+    if (!tiposDocumentoValidos.includes(form.tipo_documento)) {
+      nuevosErrores.tipo_documento = "El tipo de documento debe ser CC, CE, Pasaporte, TI o PEP.";
+    }
+    if (fechaNacimientoLimpia) {
+      const fechaNacimiento = new Date(`${fechaNacimientoLimpia}T00:00:00`);
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      if (Number.isNaN(fechaNacimiento.getTime())) {
+        nuevosErrores.fecha_nacimiento = "La fecha de nacimiento no es válida.";
+      } else if (fechaNacimiento > hoy) {
+        nuevosErrores.fecha_nacimiento = "La fecha de nacimiento no puede ser futura.";
+      }
+    }
+    if (form.sexo && !sexosValidos.includes(form.sexo)) {
+      nuevosErrores.sexo = "El sexo debe ser M, F u Otro.";
+    }
+
+    return nuevosErrores;
+  };
+
+  const onFieldChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrores((prev) => {
+      if (!prev[field]) return prev;
+      return { ...prev, [field]: "" };
+    });
+  };
+
+  const cargarOpcionesModal = async () => {
+    try {
+      const [{ data: subcargosData }, { data: obrasData }] = await Promise.all([
+        api.get("/subcargos"),
+        api.get("/obras"),
+      ]);
+      setSubcargos(subcargosData.subcargos || subcargosData.data || subcargosData || []);
+      setObras(obrasData.obras || obrasData.data || obrasData || []);
+    } catch {
+      setSubcargos([]);
+      setObras([]);
+    }
+  };
 
   const cargar = async () => {
     setLoading(true);
@@ -33,23 +110,39 @@ export default function Personal() {
   };
   useEffect(() => { cargar(); }, []);
 
-  const abrirCrear = () => {
+  const abrirCrear = async () => {
     setEditing(null);
-    setForm({ nombre: "", apellido: "", cedula: "", telefono: "", email: "", subcargo_id: "", estado: "activo" });
+    setErrores({});
+    await cargarOpcionesModal();
+    setForm({
+      nombre: "", apellido: "", cedula: "", telefono: "", email: "",
+      subcargo_id: "", estado: "activo", tipo_documento: "CC",
+      fecha_nacimiento: "", sexo: "", obra_id: "",
+    });
     setOpenModal(true);
   };
-  const abrirEditar = (t) => {
+  const abrirEditar = async (t) => {
     setEditing(t);
+    setErrores({});
+    await cargarOpcionesModal();
     setForm({
       nombre: t.nombre || "", apellido: t.apellido || "", cedula: t.cedula || "",
       telefono: t.telefono || "", email: t.email || "",
       subcargo_id: t.subcargo_id || "", estado: t.estado || "activo",
+      tipo_documento: t.tipo_documento || "CC",
+      fecha_nacimiento: t.fecha_nacimiento ? String(t.fecha_nacimiento).slice(0, 10) : "",
+      sexo: t.sexo || "",
+      obra_id: t.obra_id || "",
     });
     setOpenModal(true);
   };
 
   const onGuardar = async (e) => {
     e.preventDefault();
+    const nuevosErrores = validarFormulario();
+    setErrores(nuevosErrores);
+    if (Object.keys(nuevosErrores).length > 0) return;
+
     setSaving(true);
     try {
       if (editing) {
@@ -113,7 +206,7 @@ export default function Personal() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>ID</th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Estado</th><th></th>
+                  <th>ID</th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Obra</th><th>Estado</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -122,7 +215,8 @@ export default function Personal() {
                     <td className="text-slate-500">{t.id}</td>
                     <td className="font-medium text-slate-800">{t.nombre} {t.apellido}</td>
                     <td className="font-mono text-xs">{t.cedula}</td>
-                    <td className="text-slate-600">{t.subcargo_nombre || t.cargo || "—"}</td>
+                    <td className="text-slate-600">{t.subcargo || t.subcargo_nombre || t.cargo || "—"}</td>
+                    <td className="text-slate-600">{t.obra_nombre || "—"}</td>
                     <td>
                       <span className={t.estado === "activo" ? "badge badge-success" : "badge badge-muted"}>
                         {t.estado}
@@ -143,30 +237,105 @@ export default function Personal() {
 
       <Modal
         open={openModal}
-        onClose={() => setOpenModal(false)}
+        onClose={() => {
+          setErrores({});
+          setOpenModal(false);
+        }}
         title={editing ? "Editar trabajador" : "Registrar trabajador"}
         size="lg"
         footer={
           <>
-            <button onClick={() => setOpenModal(false)} className="btn btn-outline">Cancelar</button>
+            <button onClick={() => {
+              setErrores({});
+              setOpenModal(false);
+            }} className="btn btn-outline">Cancelar</button>
             <button onClick={onGuardar} disabled={saving} className="btn btn-primary">
               {saving && <Loader2 className="w-4 h-4 animate-spin" />} {editing ? "Guardar cambios" : "Registrar"}
             </button>
           </>
         }
       >
-        <form onSubmit={onGuardar} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="label">Nombres</label><input className="input" required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} /></div>
-          <div><label className="label">Apellidos</label><input className="input" required value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} /></div>
-          <div><label className="label">N° documento</label><input className="input" required value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })} /></div>
-          <div><label className="label">Teléfono</label><input className="input" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} /></div>
-          <div className="sm:col-span-2"><label className="label">Correo</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div>
-            <label className="label">Estado</label>
-            <select className="select" value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })}>
-              <option value="activo">Activo</option><option value="inactivo">Inactivo</option>
+        <form onSubmit={onGuardar} className="grid grid-cols-1 sm:grid-cols-6 gap-4">
+          <div className="sm:col-span-3">
+            <label className="label">Nombres</label>
+            <input className="input" required value={form.nombre} onChange={(e) => onFieldChange("nombre", e.target.value)} />
+            {errores.nombre && <p className="text-xs text-red-600 mt-1">{errores.nombre}</p>}
+          </div>
+          <div className="sm:col-span-3">
+            <label className="label">Apellidos</label>
+            <input className="input" required value={form.apellido} onChange={(e) => onFieldChange("apellido", e.target.value)} />
+            {errores.apellido && <p className="text-xs text-red-600 mt-1">{errores.apellido}</p>}
+          </div>
+          <div className="sm:col-span-3">
+            <label className="label">Tipo documento</label>
+            <select className="select" value={form.tipo_documento} onChange={(e) => onFieldChange("tipo_documento", e.target.value)}>
+              <option value="CC">CC</option>
+              <option value="CE">CE</option>
+              <option value="Pasaporte">Pasaporte</option>
+              <option value="TI">TI</option>
+              <option value="PEP">PEP</option>
+            </select>
+            {errores.tipo_documento && <p className="text-xs text-red-600 mt-1">{errores.tipo_documento}</p>}
+          </div>
+          <div className="sm:col-span-3">
+            <label className="label">N° documento</label>
+            <input className="input" required value={form.cedula} onChange={(e) => onFieldChange("cedula", e.target.value)} />
+            {errores.cedula && <p className="text-xs text-red-600 mt-1">{errores.cedula}</p>}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Teléfono</label>
+            <input className="input" value={form.telefono} onChange={(e) => onFieldChange("telefono", e.target.value)} />
+            {errores.telefono && <p className="text-xs text-red-600 mt-1">{errores.telefono}</p>}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Fecha de nacimiento</label>
+            <input type="date" className="input" value={form.fecha_nacimiento} onChange={(e) => onFieldChange("fecha_nacimiento", e.target.value)} />
+            {errores.fecha_nacimiento && <p className="text-xs text-red-600 mt-1">{errores.fecha_nacimiento}</p>}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Sexo</label>
+            <select className="select" value={form.sexo} onChange={(e) => onFieldChange("sexo", e.target.value)}>
+              <option value="">Seleccionar</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
+              <option value="Otro">Otro</option>
+            </select>
+            {errores.sexo && <p className="text-xs text-red-600 mt-1">{errores.sexo}</p>}
+          </div>
+          <div className="sm:col-span-6">
+            <label className="label">Correo</label>
+            <input type="email" className="input" value={form.email} onChange={(e) => onFieldChange("email", e.target.value)} />
+            {errores.email && <p className="text-xs text-red-600 mt-1">{errores.email}</p>}
+          </div>
+          <div className="sm:col-span-6">
+            <label className="label">Asignación y cargo</label>
+          </div>
+          <div className="sm:col-span-3">
+            <label className="label">Cargo</label>
+            <select className="select" value={form.subcargo_id} onChange={(e) => onFieldChange("subcargo_id", e.target.value)}>
+              <option value="">Seleccionar cargo</option>
+              {subcargos.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombre}</option>
+              ))}
             </select>
           </div>
+          <div className="sm:col-span-3">
+            <label className="label">Obra</label>
+            <select className="select" value={form.obra_id} onChange={(e) => onFieldChange("obra_id", e.target.value)}>
+              <option value="">Seleccionar obra</option>
+              {obras.map((o) => (
+                <option key={o.id} value={o.id}>{o.nombre}</option>
+              ))}
+            </select>
+          </div>
+          {editing && (
+            <div className="sm:col-span-3">
+              <label className="label">Estado</label>
+              <select className="select" value={form.estado} onChange={(e) => onFieldChange("estado", e.target.value)}>
+                <option value="activo">Activo</option><option value="inactivo">Inactivo</option>
+              </select>
+            </div>
+          )}
         </form>
       </Modal>
     </>

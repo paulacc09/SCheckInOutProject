@@ -2,6 +2,57 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
 const sanitizeOptional = (value) => (value ? value : null);
+const codigoRegex = /^[A-Z0-9-]{3,20}$/;
+const nombreRegex = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s-]{3,100}$/;
+const ciudadRegex = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]{2,60}$/;
+const fechaRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+const validarDatosObra = ({ codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin }, res) => {
+  const codigoLimpio = String(codigo || '').trim();
+  const nombreLimpio = String(nombre || '').trim();
+  const ciudadLimpia = ciudad ? String(ciudad).trim() : '';
+  const direccionLimpia = direccion ? String(direccion).trim() : '';
+  const fechaInicioLimpia = fecha_inicio ? String(fecha_inicio).trim() : '';
+  const fechaFinLimpia = fecha_fin ? String(fecha_fin).trim() : '';
+
+  if (!codigoLimpio || !nombreLimpio) {
+    error(res, 'codigo y nombre son requeridos', 400);
+    return false;
+  }
+  if (!codigoRegex.test(codigoLimpio)) {
+    error(res, 'El código debe tener entre 3 y 20 caracteres, en mayúsculas, sin espacios y solo con números o guiones.', 400);
+    return false;
+  }
+  if (!nombreRegex.test(nombreLimpio)) {
+    error(res, 'El nombre debe tener entre 3 y 100 caracteres y solo contener letras, números, espacios y guiones.', 400);
+    return false;
+  }
+  if (ciudadLimpia && !ciudadRegex.test(ciudadLimpia)) {
+    error(res, 'La ciudad debe tener entre 2 y 60 caracteres y solo contener letras y espacios.', 400);
+    return false;
+  }
+  if (direccionLimpia && (direccionLimpia.length < 5 || direccionLimpia.length > 150)) {
+    error(res, 'La dirección debe tener entre 5 y 150 caracteres.', 400);
+    return false;
+  }
+  if (fechaInicioLimpia && !fechaRegex.test(fechaInicioLimpia)) {
+    error(res, 'La fecha de inicio debe tener formato válido YYYY-MM-DD.', 400);
+    return false;
+  }
+  if (fechaFinLimpia && !fechaRegex.test(fechaFinLimpia)) {
+    error(res, 'La fecha de fin debe tener formato válido YYYY-MM-DD.', 400);
+    return false;
+  }
+  if (fechaInicioLimpia && fechaFinLimpia) {
+    const fechaInicioObj = new Date(fechaInicioLimpia);
+    const fechaFinObj = new Date(fechaFinLimpia);
+    if (fechaFinObj < fechaInicioObj) {
+      error(res, 'La fecha de fin debe ser igual o posterior a la fecha de inicio.', 400);
+      return false;
+    }
+  }
+  return true;
+};
 
 const listar = async (req, res) => {
   try {
@@ -36,6 +87,7 @@ const obtener = async (req, res) => {
 const crear = async (req, res) => {
   const { codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo } = req.body;
   if (!codigo || !nombre) return error(res, 'codigo y nombre son requeridos');
+  if (!validarDatosObra({ codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin }, res)) return;
   try {
     const ciudadSanitized = sanitizeOptional(ciudad);
     const direccionSanitized = sanitizeOptional(direccion);
@@ -67,6 +119,7 @@ const crear = async (req, res) => {
 
 const actualizar = async (req, res) => {
   const { codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo } = req.body;
+  if (!validarDatosObra({ codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin }, res)) return;
   try {
     const ciudadSanitized = sanitizeOptional(ciudad);
     const direccionSanitized = sanitizeOptional(direccion);
