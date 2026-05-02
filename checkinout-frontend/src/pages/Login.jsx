@@ -158,7 +158,7 @@ export default function Login() {
               </div>
             </div>
 
-            <button type="button" className="btn btn-outline w-full py-2.5" disabled>
+            <button type="button" className="btn btn-outline w-full py-2.5" onClick={() => window.location.href = 'http://localhost:3000/api/auth/google'}>
               Continuar con Google
             </button>
 

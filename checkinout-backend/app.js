@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const passport = require('./src/utils/passport');
 require('dotenv').config();
 
 const app = express();
@@ -7,6 +8,7 @@ const app = express();
 // ✅ Middlewares PRIMERO
 app.use(cors());
 app.use(express.json());
+app.use(passport.initialize());
 
 // ✅ Rutas DESPUÉS
 app.use('/api/auth', require('./src/routes/auth.routes'));

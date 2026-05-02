@@ -134,4 +134,74 @@ const perfil = async (req, res) => {
   }
 };
 
-module.exports = { login, registro, perfil };
+const googleCallback = async (req, res) => {
+  const profile = req.user || req.body?.profile || req.profile;
+
+  if (!profile?.emails?.[0]?.value) {
+    return error(res, 'Perfil de Google inválido', 400);
+  }
+
+  const email = profile.emails[0].value;
+  const nombre = profile?.name?.givenName || 'Usuario';
+  const apellido = profile?.name?.familyName || profile?.displayName || 'Google';
+
+  try {
+    let [rows] = await pool.execute(
+      `SELECT u.*, e.nombre AS empresa_nombre
+       FROM usuarios u
+       LEFT JOIN empresas e ON e.id = u.empresa_id
+       WHERE u.email = ?
+       LIMIT 1`,
+      [email]
+    );
+
+    let usuario = rows[0];
+
+    if (!usuario) {
+      const [result] = await pool.execute(
+        `INSERT INTO usuarios (nombre, apellido, email, password_hash, rol, empresa_id)
+         VALUES (?, ?, ?, 'GOOGLE_AUTH', 'administrador', NULL)`,
+        [nombre, apellido, email]
+      );
+
+      [rows] = await pool.execute(
+        `SELECT u.*, e.nombre AS empresa_nombre
+         FROM usuarios u
+         LEFT JOIN empresas e ON e.id = u.empresa_id
+         WHERE u.id = ?
+         LIMIT 1`,
+        [result.insertId]
+      );
+      usuario = rows[0];
+    }
+
+    const token = jwt.sign(
+      {
+        id: usuario.id,
+        email: usuario.email,
+        rol: usuario.rol,
+        empresa_id: usuario.empresa_id
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
+
+    return success(res, {
+      token,
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        email: usuario.email,
+        rol: usuario.rol,
+        empresa_id: usuario.empresa_id,
+        empresa_nombre: usuario.empresa_nombre
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Error interno del servidor', 500);
+  }
+};
+
+module.exports = { login, registro, perfil, googleCallback };
