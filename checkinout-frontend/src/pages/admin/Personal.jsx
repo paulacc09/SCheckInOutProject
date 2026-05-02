@@ -52,7 +52,13 @@ export default function Personal() {
     e.preventDefault();
     setSaving(true);
     try {
-      if (editing) await api.put(`/trabajadores/${editing.id}`, form);
+      if (editing) {
+        const updatePayload = {
+          ...form,
+          estado: (form.estado || "activo").toLowerCase(),
+        };
+        await api.put(`/trabajadores/${editing.id}`, updatePayload);
+      }
       else await api.post("/trabajadores", form);
       setOpenModal(false);
       await cargar();

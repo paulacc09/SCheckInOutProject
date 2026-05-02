@@ -1,6 +1,8 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
+const sanitizeOptional = (value) => (value ? value : null);
+
 const listar = async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -35,10 +37,27 @@ const crear = async (req, res) => {
   const { codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo } = req.body;
   if (!codigo || !nombre) return error(res, 'codigo y nombre son requeridos');
   try {
+    const ciudadSanitized = sanitizeOptional(ciudad);
+    const direccionSanitized = sanitizeOptional(direccion);
+    const fechaInicioSanitized = sanitizeOptional(fecha_inicio);
+    const fechaFinSanitized = sanitizeOptional(fecha_fin);
+    const responsableSstIdSanitized = sanitizeOptional(responsable_sst_id);
+    const idDispositivoSanitized = sanitizeOptional(id_dispositivo);
+
     const [result] = await db.query(
       `INSERT INTO obras (empresa_id, codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.usuario.empresa_id, codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo]
+      [
+        req.usuario.empresa_id,
+        codigo,
+        nombre,
+        ciudadSanitized,
+        direccionSanitized,
+        fechaInicioSanitized,
+        fechaFinSanitized,
+        responsableSstIdSanitized,
+        idDispositivoSanitized
+      ]
     );
     return success(res, { id: result.insertId }, 201);
   } catch (err) {
@@ -49,10 +68,28 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   const { codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo } = req.body;
   try {
+    const ciudadSanitized = sanitizeOptional(ciudad);
+    const direccionSanitized = sanitizeOptional(direccion);
+    const fechaInicioSanitized = sanitizeOptional(fecha_inicio);
+    const fechaFinSanitized = sanitizeOptional(fecha_fin);
+    const responsableSstIdSanitized = sanitizeOptional(responsable_sst_id);
+    const idDispositivoSanitized = sanitizeOptional(id_dispositivo);
+
     const [result] = await db.query(
       `UPDATE obras SET codigo=?, nombre=?, ciudad=?, direccion=?, fecha_inicio=?, fecha_fin=?, responsable_sst_id=?, id_dispositivo=?
        WHERE id=? AND empresa_id=?`,
-      [codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo, req.params.id, req.usuario.empresa_id]
+      [
+        codigo,
+        nombre,
+        ciudadSanitized,
+        direccionSanitized,
+        fechaInicioSanitized,
+        fechaFinSanitized,
+        responsableSstIdSanitized,
+        idDispositivoSanitized,
+        req.params.id,
+        req.usuario.empresa_id
+      ]
     );
     if (!result.affectedRows) return error(res, 'Obra no encontrada', 404);
     return success(res, { mensaje: 'Actualizada correctamente' });

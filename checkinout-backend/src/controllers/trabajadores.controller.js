@@ -1,6 +1,8 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 
+const sanitizeOptional = (value) => (value ? value : null);
+
 const listar = async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -38,10 +40,14 @@ const crear = async (req, res) => {
     return error(res, 'nombre, apellido y cedula son requeridos');
   }
   try {
+    const telefonoSanitized = sanitizeOptional(telefono);
+    const emailSanitized = sanitizeOptional(email);
+    const subcargoIdSanitized = sanitizeOptional(subcargo_id);
+
     const [result] = await db.query(
       `INSERT INTO trabajadores (empresa_id, nombre, apellido, cedula, telefono, email, subcargo_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [req.usuario.empresa_id, nombre, apellido, cedula, telefono, email, subcargo_id]
+      [req.usuario.empresa_id, nombre, apellido, cedula, telefonoSanitized, emailSanitized, subcargoIdSanitized]
     );
     return success(res, { id: result.insertId }, 201);
   } catch (err) {
@@ -51,12 +57,27 @@ const crear = async (req, res) => {
 };
 
 const actualizar = async (req, res) => {
-  const { nombre, apellido, cedula, telefono, email, subcargo_id } = req.body;
+  const { nombre, apellido, cedula, telefono, email, subcargo_id, estado } = req.body;
   try {
+    const telefonoSanitized = sanitizeOptional(telefono);
+    const emailSanitized = sanitizeOptional(email);
+    const subcargoIdSanitized = sanitizeOptional(subcargo_id);
+    const estadoSanitized = (estado || 'activo').toLowerCase();
+
+    const [rows] = await db.query(
+      `SELECT estado FROM trabajadores WHERE id=? AND empresa_id=?`,
+      [req.params.id, req.usuario.empresa_id]
+    );
+    if (!rows.length) return error(res, 'Trabajador no encontrado', 404);
+
+    const estadoFinal = ['activo', 'inactivo'].includes(estadoSanitized)
+      ? estadoSanitized
+      : rows[0].estado;
+
     const [result] = await db.query(
-      `UPDATE trabajadores SET nombre=?, apellido=?, cedula=?, telefono=?, email=?, subcargo_id=?
+      `UPDATE trabajadores SET nombre=?, apellido=?, cedula=?, telefono=?, email=?, subcargo_id=?, estado=?
        WHERE id=? AND empresa_id=?`,
-      [nombre, apellido, cedula, telefono, email, subcargo_id, req.params.id, req.usuario.empresa_id]
+      [nombre, apellido, cedula, telefonoSanitized, emailSanitized, subcargoIdSanitized, estadoFinal, req.params.id, req.usuario.empresa_id]
     );
     if (!result.affectedRows) return error(res, 'Trabajador no encontrado', 404);
     return success(res, { mensaje: 'Actualizado correctamente' });
