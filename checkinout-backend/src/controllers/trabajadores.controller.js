@@ -79,20 +79,76 @@ const asignarObraSiCorresponde = async ({ trabajadorId, obraId }) => {
 
 const listar = async (req, res) => {
   try {
-    const [rows] = await db.query(`
-      SELECT t.id, t.empresa_id, t.nombre, t.apellido, t.tipo_documento, t.cedula, t.fecha_nacimiento, t.sexo,
-             t.telefono, t.email, t.subcargo_id, t.estado, t.created_at, t.updated_at,
-             s.nombre AS subcargo, e.nombre AS empresa, ob.id AS obra_id, ob.nombre AS obra_nombre
+    const empresaId = req.usuario.empresa_id;
+    const { q = "", estado, obra_id, page = "1", limit = "15" } = req.query;
+
+    let pageNum = parseInt(page, 10);
+    let limitNum = parseInt(limit, 10);
+    if (Number.isNaN(pageNum) || pageNum < 1) pageNum = 1;
+    if (Number.isNaN(limitNum)) limitNum = 15;
+    limitNum = Math.min(Math.max(limitNum, 1), 500);
+    const offset = (pageNum - 1) * limitNum;
+
+    let whereClause = `WHERE t.empresa_id = ?`;
+    const paramsBase = [empresaId];
+
+    if (estado === 'activo' || estado === 'inactivo') {
+      whereClause += ` AND t.estado = ?`;
+      paramsBase.push(estado);
+    }
+
+    if (obra_id) {
+      whereClause += ` AND ob.id = ?`;
+      paramsBase.push(String(obra_id).trim());
+    }
+
+    const qTrim = String(q || '').trim();
+    if (qTrim) {
+      const likeNombre = `%${qTrim.toLowerCase()}%`;
+      const likeCedula = `%${qTrim.replace(/\s+/g, '')}%`;
+      whereClause += ` AND (
+        LOWER(t.nombre) LIKE ?
+        OR LOWER(t.apellido) LIKE ?
+        OR LOWER(CONCAT(t.nombre,' ',t.apellido)) LIKE ?
+        OR CAST(t.cedula AS CHAR) LIKE ?
+      )`;
+      paramsBase.push(likeNombre, likeNombre, likeNombre, likeCedula);
+    }
+
+    const fromJoin = `
       FROM trabajadores t
       LEFT JOIN subcargos s ON s.id = t.subcargo_id
       LEFT JOIN empresas e ON e.id = t.empresa_id
-      LEFT JOIN asignaciones a ON a.trabajador_id = t.id 
+      LEFT JOIN asignaciones a ON a.trabajador_id = t.id
         AND a.estado = 'activo'
       LEFT JOIN obras ob ON ob.id = a.obra_id
-      WHERE t.empresa_id = ?
-      ORDER BY t.nombre
-    `, [req.usuario.empresa_id]);
-    return success(res, rows);
+    `;
+
+    const selectFields = `
+      SELECT t.id, t.empresa_id, t.nombre, t.apellido, t.tipo_documento, t.cedula, t.fecha_nacimiento, t.sexo,
+             t.telefono, t.email, t.subcargo_id, t.estado, t.created_at, t.updated_at,
+             s.nombre AS subcargo, e.nombre AS empresa, ob.id AS obra_id, ob.nombre AS obra_nombre
+    `;
+
+    const countSql = `SELECT COUNT(DISTINCT t.id) AS total ${fromJoin} ${whereClause}`;
+    const [[countRow]] = await db.query(countSql, paramsBase);
+    const total = Number(countRow?.total) || 0;
+
+    const listSql = `${selectFields}
+      ${fromJoin}
+      ${whereClause}
+      ORDER BY t.nombre ASC, t.apellido ASC
+      LIMIT ? OFFSET ?
+    `;
+    const listParams = [...paramsBase, limitNum, offset];
+    const [rows] = await db.query(listSql, listParams);
+
+    return success(res, {
+      trabajadores: rows,
+      total,
+      page: pageNum,
+      limit: limitNum,
+    });
   } catch (err) {
     return error(res, err.message, 500);
   }

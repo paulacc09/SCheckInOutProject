@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
-import { Plus, Search, Loader2, Pencil, AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Plus, Search, Loader2, Pencil, AlertCircle, Building2,
+  ChevronLeft, ChevronRight,
+} from "lucide-react";
 import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
@@ -16,8 +19,12 @@ export default function Personal() {
   const [trabajadores, setTrabajadores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const PAGE_SIZE = 15;
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState("");
+  const [obraFiltro, setObraFiltro] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -82,6 +89,24 @@ export default function Personal() {
     });
   };
 
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const { data: body } = await api.get("/obras");
+        const list = body?.obras || body?.data || [];
+        if (!cancel) setObras(Array.isArray(list) ? list : []);
+      } catch {
+        if (!cancel) setObras([]);
+      }
+    })();
+    return () => { cancel = true; };
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, estado, obraFiltro]);
+
   const cargarOpcionesModal = async () => {
     try {
       const [{ data: subcargosData }, { data: obrasData }] = await Promise.all([
@@ -96,19 +121,41 @@ export default function Personal() {
     }
   };
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const { data } = await api.get("/trabajadores");
-      setTrabajadores(data.trabajadores || data.data || data || []);
+      const params = {
+        page,
+        limit: PAGE_SIZE,
+      };
+      const qTrim = q.trim();
+      if (qTrim) params.q = qTrim;
+      if (estado) params.estado = estado.toLowerCase();
+      if (obraFiltro) params.obra_id = obraFiltro;
+
+      const { data } = await api.get("/trabajadores", { params });
+      const payload = data?.data;
+      if (payload && typeof payload === "object" && !Array.isArray(payload) && payload.trabajadores) {
+        setTrabajadores(payload.trabajadores);
+        setTotal(Number(payload.total) || 0);
+      } else if (Array.isArray(payload)) {
+        setTrabajadores(payload);
+        setTotal(payload.length);
+      } else {
+        setTrabajadores([]);
+        setTotal(0);
+      }
     } catch (err) {
-      setError(err.response?.data?.mensaje || "No se pudo cargar el personal");
+      setError(err.response?.data?.message || err.response?.data?.mensaje || "No se pudo cargar el personal");
     } finally {
       setLoading(false);
     }
-  };
-  useEffect(() => { cargar(); }, []);
+  }, [page, q, estado, obraFiltro]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
 
   const abrirCrear = async () => {
     setEditing(null);
@@ -156,20 +203,16 @@ export default function Personal() {
       setOpenModal(false);
       await cargar();
     } catch (err) {
-      alert(err.response?.data?.mensaje || "Error al guardar trabajador");
+      alert(err.response?.data?.message || err.response?.data?.mensaje || "Error al guardar trabajador");
     } finally {
       setSaving(false);
     }
   };
 
-  const filtrados = trabajadores.filter((t) => {
-    const txt = q.toLowerCase();
-    const okQ = !txt ||
-      `${t.nombre} ${t.apellido}`.toLowerCase().includes(txt) ||
-      (t.cedula || "").toLowerCase().includes(txt);
-    const okEstado = !estado || t.estado === estado;
-    return okQ && okEstado;
-  });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const goPrev = () => setPage((p) => Math.max(1, p - 1));
+  const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
   return (
     <>
@@ -179,10 +222,19 @@ export default function Personal() {
         right={<button onClick={abrirCrear} className="btn btn-primary"><Plus className="w-4 h-4" /> Registrar Trabajador</button>}
       />
       <div className="p-6 space-y-4">
-        <div className="card card-body flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="card card-body flex flex-col lg:flex-row flex-wrap gap-3">
+          <div className="relative flex-1 min-w-[12rem]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} className="input pl-9" placeholder="Buscar por nombre o cédula…" />
+          </div>
+          <div className="relative min-w-[12rem]">
+            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <select className="select pl-9 w-full lg:w-auto lg:min-w-[14rem]" value={obraFiltro} onChange={(e) => setObraFiltro(e.target.value)}>
+              <option value="">Todas las obras</option>
+              {obras.map((o) => (
+                <option key={o.id} value={String(o.id)}>{o.nombre}</option>
+              ))}
+            </select>
           </div>
           <select className="select sm:w-40" value={estado} onChange={(e) => setEstado(e.target.value)}>
             <option value="">Todos los estados</option>
@@ -195,7 +247,7 @@ export default function Personal() {
           <div className="card card-body flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : error ? (
           <div className="card card-body flex items-center gap-2 text-red-600"><AlertCircle className="w-5 h-5" /> {error}</div>
-        ) : filtrados.length === 0 ? (
+        ) : trabajadores.length === 0 ? (
           <div className="card">
             <EmptyState title="Sin trabajadores" message="Aún no has registrado personal." action={
               <button onClick={abrirCrear} className="btn btn-primary"><Plus className="w-4 h-4" /> Registrar trabajador</button>
@@ -210,7 +262,7 @@ export default function Personal() {
                 </tr>
               </thead>
               <tbody>
-                {filtrados.map((t) => (
+                {trabajadores.map((t) => (
                   <tr key={t.id}>
                     <td className="text-slate-500">{t.id}</td>
                     <td className="font-medium text-slate-800">{t.nombre} {t.apellido}</td>
@@ -231,6 +283,39 @@ export default function Personal() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && !error && total > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-slate-600">
+            <span>
+              Mostrando{" "}
+              <span className="font-semibold tabular-nums">
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}
+              </span>{" "}
+              de <span className="font-semibold tabular-nums">{total}</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={goPrev}
+                className="btn btn-outline py-2 px-3 disabled:opacity-40"
+              >
+                <ChevronLeft className="w-4 h-4" /> Anterior
+              </button>
+              <span className="tabular-nums px-2">
+                Página {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={goNext}
+                className="btn btn-outline py-2 px-3 disabled:opacity-40"
+              >
+                Siguiente <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>
