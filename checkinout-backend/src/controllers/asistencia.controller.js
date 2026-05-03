@@ -90,19 +90,39 @@ const listarJornadas = async (req, res) => {
 };
 
 const listarRegistros = async (req, res) => {
-  const { obra_id, fecha, trabajador_id } = req.query;
+  const { obra_id, fecha, trabajador_id, tipo, registro_estado } = req.query;
   try {
     let query = `
-      SELECT r.*, CONCAT(t.nombre,' ',t.apellido) AS trabajador, t.cedula
+      SELECT r.*,
+             CONCAT(t.nombre,' ',t.apellido) AS trabajador,
+             t.cedula,
+             o.nombre AS obra_nombre
       FROM registros_asistencia r
       JOIN trabajadores t ON t.id = r.trabajador_id
       JOIN obras o ON o.id = r.obra_id
       WHERE o.empresa_id = ?
     `;
     const params = [req.usuario.empresa_id];
-    if (obra_id) { query += ` AND r.obra_id = ?`; params.push(obra_id); }
-    if (fecha) { query += ` AND DATE(r.timestamp) = ?`; params.push(fecha); }
-    if (trabajador_id) { query += ` AND r.trabajador_id = ?`; params.push(trabajador_id); }
+    if (obra_id) {
+      query += ` AND r.obra_id = ?`;
+      params.push(obra_id);
+    }
+    if (fecha) {
+      query += ` AND DATE(r.timestamp) = ?`;
+      params.push(fecha);
+    }
+    if (trabajador_id) {
+      query += ` AND r.trabajador_id = ?`;
+      params.push(trabajador_id);
+    }
+    if (tipo && ['ingreso', 'salida'].includes(tipo)) {
+      query += ` AND r.tipo = ?`;
+      params.push(tipo);
+    }
+    if (registro_estado) {
+      query += ` AND r.estado = ?`;
+      params.push(registro_estado);
+    }
     query += ` ORDER BY r.timestamp DESC`;
     const [rows] = await db.query(query, params);
     return success(res, rows);
@@ -111,4 +131,73 @@ const listarRegistros = async (req, res) => {
   }
 };
 
-module.exports = { abrirJornada, cerrarJornada, registrarAsistencia, listarJornadas, listarRegistros };
+/**
+ * Esperados / asistentes alineados a los filtros de fecha y obra:
+ * esperados = activos empresa (asignados a esa obra si hay filtro obra)
+ * asistentes = trabajadores con al menos un ingreso válido ese día en el mismo alcance
+ */
+const resumenAsistencia = async (req, res) => {
+  const { fecha, obra_id } = req.query;
+  if (!fecha) return error(res, 'fecha es requerida', 400);
+
+  try {
+    const empresaId = req.usuario.empresa_id;
+    const obraParam = obra_id ? String(obra_id).trim() : '';
+
+    let sqlEsperados = `
+      SELECT COUNT(DISTINCT t.id) AS n
+      FROM trabajadores t
+      LEFT JOIN asignaciones a ON a.trabajador_id = t.id AND a.estado = 'activo'
+      LEFT JOIN obras ob ON ob.id = a.obra_id
+      WHERE t.empresa_id = ? AND t.estado = 'activo'
+    `;
+    const paramsEsp = [empresaId];
+    if (obraParam) {
+      sqlEsperados += ` AND ob.id = ?`;
+      paramsEsp.push(obraParam);
+    }
+
+    const [[{ n: esperados }]] = await db.query(sqlEsperados, paramsEsp);
+
+    let sqlAsistentes = `
+      SELECT COUNT(DISTINCT r.trabajador_id) AS n
+      FROM registros_asistencia r
+      JOIN obras o ON o.id = r.obra_id
+      WHERE o.empresa_id = ?
+        AND DATE(r.timestamp) = ?
+        AND r.tipo = 'ingreso'
+        AND r.estado = 'valido'
+    `;
+    const paramsAsis = [empresaId, fecha];
+    if (obraParam) {
+      sqlAsistentes += ` AND r.obra_id = ?`;
+      paramsAsis.push(obraParam);
+    }
+
+    const [[{ n: asistentes }]] = await db.query(sqlAsistentes, paramsAsis);
+
+    const pct = esperados > 0
+      ? Math.round((asistentes / esperados) * 1000) / 10
+      : 0;
+
+    return success(res, {
+      fecha,
+      obra_id: obraParam || null,
+      esperados: Number(esperados) || 0,
+      asistentes: Number(asistentes) || 0,
+      porcentaje_asistencia: pct,
+      trabajadores_activos: Number(esperados) || 0,
+    });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+module.exports = {
+  abrirJornada,
+  cerrarJornada,
+  registrarAsistencia,
+  listarJornadas,
+  listarRegistros,
+  resumenAsistencia,
+};
