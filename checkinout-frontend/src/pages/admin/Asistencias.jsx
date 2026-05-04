@@ -1,250 +1,72 @@
-import { useCallback, useEffect, useState } from "react";
-import { Loader2, AlertCircle, Calendar, Building2, Filter, Percent, Users } from "lucide-react";
-import api from "../../api/axios";
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import TopBar from "../../components/TopBar";
-import EmptyState from "../../components/EmptyState";
 
-const normMsg = (err) =>
-  err.response?.data?.message || err.response?.data?.mensaje || "Algo salió mal";
+const ROWS = [
+  { id: 1, nombre: "Pepito Andres Perez Roa", obra: "Mandarino", fecha: "11/04/2026", ingreso: "6:00", salida: "18:00", estado: "Salida" },
+  { id: 2, nombre: "Jose Steven Peña Hernan", obra: "H. Peñalisa", fecha: "11/04/2026", ingreso: "5:30", salida: "17:56", estado: "Salida" },
+  { id: 3, nombre: "Javier Esteban Rendón", obra: "H. Nakare", fecha: "11/04/2026", ingreso: "5:45", salida: "--", estado: "Presente" },
+  { id: 4, nombre: "Manuel Esteban Gámez", obra: "Mandarino", fecha: "11/04/2026", ingreso: "--", salida: "--", estado: "Ausente" },
+  { id: 5, nombre: "Jesus Alberto de Agua", obra: "H. Peñalisa", fecha: "11/06/2026", ingreso: "6:10", salida: "19:00", estado: "Salida" },
+];
 
 export default function Asistencias() {
-  const [registros, setRegistros] = useState([]);
-  const [obras, setObras] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [q, setQ] = useState("");
+  const [obra, setObra] = useState("");
+  const [fecha, setFecha] = useState("");
+  const [estado, setEstado] = useState("");
+  const [page, setPage] = useState(1);
+  const perPage = 4;
 
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
-  const [obraId, setObraId] = useState("");
-  const [tipoFiltro, setTipoFiltro] = useState("");
-  const [registroEstado, setRegistroEstado] = useState("");
-
-  const [resumen, setResumen] = useState({
-    porcentaje_asistencia: 0,
-    asistentes: 0,
-    trabajadores_activos: 0,
-    esperados: 0,
-  });
-
-  useEffect(() => {
-    let cancel = false;
-    (async () => {
-      try {
-        const { data: body } = await api.get("/obras");
-        if (cancel) return;
-        const list = body?.data ?? body?.obras ?? [];
-        setObras(Array.isArray(list) ? list : []);
-      } catch {
-        if (!cancel) setObras([]);
-      }
-    })();
-    return () => { cancel = true; };
-  }, []);
-
-  const cargarResumen = useCallback(async () => {
-    try {
-      const { data: body } = await api.get("/asistencia/resumen", {
-        params: { fecha, obra_id: obraId || undefined },
-      });
-      const stats = body?.data ?? {};
-      const pct = Number(stats.porcentaje_asistencia);
-      const asistentesNum = Number(stats.asistentes);
-      const esperadosNum = Number(stats.esperados);
-      const activosNum = Number(stats.trabajadores_activos ?? stats.esperados);
-      setResumen({
-        porcentaje_asistencia: Number.isFinite(pct) ? pct : 0,
-        asistentes: Number.isFinite(asistentesNum) ? asistentesNum : 0,
-        trabajadores_activos: Number.isFinite(activosNum) ? activosNum : 0,
-        esperados: Number.isFinite(esperadosNum) ? esperadosNum : 0,
-      });
-    } catch {
-      setResumen({
-        porcentaje_asistencia: 0,
-        asistentes: 0,
-        trabajadores_activos: 0,
-        esperados: 0,
-      });
-    }
-  }, [fecha, obraId]);
-
-  const cargarRegistros = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const params = {
-        fecha,
-        ...(obraId ? { obra_id: obraId } : {}),
-        ...(tipoFiltro ? { tipo: tipoFiltro } : {}),
-        ...(registroEstado ? { registro_estado: registroEstado } : {}),
-      };
-      await cargarResumen();
-      const { data: regBody } = await api.get("/asistencia/registros", { params });
-      const lista = regBody?.data ?? regBody?.registros ?? [];
-      setRegistros(Array.isArray(lista) ? lista : []);
-    } catch (err) {
-      setError(normMsg(err) || "No se pudo cargar la asistencia");
-      setRegistros([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [fecha, obraId, tipoFiltro, registroEstado, cargarResumen]);
-
-  useEffect(() => {
-    cargarRegistros();
-  }, [cargarRegistros]);
+  const filtrados = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return ROWS.filter((r) => {
+      const okQ = !t || r.nombre.toLowerCase().includes(t);
+      const okObra = !obra || r.obra === obra;
+      const okFecha = !fecha || r.fecha === fecha;
+      const okEstado = !estado || r.estado === estado;
+      return okQ && okObra && okFecha && okEstado;
+    });
+  }, [q, obra, fecha, estado]);
+  const totalPages = Math.max(1, Math.ceil(filtrados.length / perPage));
+  const data = filtrados.slice((page - 1) * perPage, page * perPage);
 
   return (
     <>
-      <TopBar title="Asistencias" subtitle="Consulta los registros de ingreso y salida" />
+      <TopBar />
       <div className="p-6 space-y-4">
-        <div className="card card-body flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <Filter className="w-4 h-4" /> Filtros
-          </div>
-          <div className="flex flex-col lg:flex-row flex-wrap gap-4 items-start lg:items-end">
-            <div>
-              <label className="label">Fecha</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="date"
-                  className="input pl-9 min-w-[12rem]"
-                  value={fecha}
-                  onChange={(e) => setFecha(e.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <label className="label">Obra</label>
-              <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <select
-                  className="select pl-9 min-w-[14rem]"
-                  value={obraId}
-                  onChange={(e) => setObraId(e.target.value)}
-                >
-                  <option value="">Todas las obras</option>
-                  {obras.map((o) => (
-                    <option key={o.id} value={o.id}>{o.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="label">Tipo registro</label>
-              <select
-                className="select sm:w-40"
-                value={tipoFiltro}
-                onChange={(e) => setTipoFiltro(e.target.value)}
-              >
-                <option value="">Todos</option>
-                <option value="ingreso">Ingreso</option>
-                <option value="salida">Salida</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Estado</label>
-              <select
-                className="select sm:w-40"
-                value={registroEstado}
-                onChange={(e) => setRegistroEstado(e.target.value)}
-              >
-                <option value="">Todos</option>
-                <option value="valido">Válido</option>
-                <option value="duplicado">Duplicado</option>
-                <option value="invalido">Inválido</option>
-              </select>
-            </div>
-          </div>
-
-          {!loading && !error && (
-            <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
-              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
-                  <Percent className="w-4 h-4 text-primary shrink-0" /> Asistencia del día
-                </div>
-                <div className="text-3xl font-bold text-slate-800 tabular-nums">
-                  {resumen.esperados > 0 ? `${resumen.porcentaje_asistencia}%` : "—"}
-                </div>
-                <div className="text-xs text-slate-600 mt-1">
-                  Asistentes: <span className="font-semibold">{resumen.asistentes}</span>
-                  {" · "}
-                  Esperados: <span className="font-semibold">{resumen.esperados}</span>
-                </div>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
-                  <Users className="w-4 h-4 text-primary shrink-0" /> Activos ({obraId ? "en la obra seleccionada" : "empresa"})
-                </div>
-                <div className="text-3xl font-bold text-slate-800 tabular-nums">
-                  {resumen.trabajadores_activos}
-                </div>
-                <div className="text-xs text-slate-600 mt-1">
-                  Personal activo en plantilla conforme al filtro de obra.
-                </div>
-              </div>
-            </div>
-          )}
+        <h2 className="text-2xl font-bold text-slate-800">Gestión Asistencias</h2>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div className="rounded-xl bg-white border p-5"><div className="text-3xl font-bold">3</div><div className="text-sm text-slate-500">Total Registrados</div></div>
+          <div className="rounded-xl bg-white border p-5"><div className="text-3xl font-bold">2</div><div className="text-sm text-slate-500">Activos</div></div>
+          <div className="rounded-xl bg-white border p-5"><div className="text-3xl font-bold">1</div><div className="text-sm text-slate-500">Inactivos</div></div>
         </div>
-
-        {loading ? (
-          <div className="card card-body flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        <div className="card card-body flex flex-col gap-4">
+          <div className="flex flex-col lg:flex-row gap-3">
+            <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input className="input pl-9" placeholder="Buscar" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} /></div>
+            <select className="select" value={obra} onChange={(e) => { setPage(1); setObra(e.target.value); }}><option value="">Obra</option><option>Mandarino</option><option>H. Peñalisa</option><option>H. Nakare</option></select>
+            <select className="select" value={fecha} onChange={(e) => { setPage(1); setFecha(e.target.value); }}><option value="">Fecha</option><option>11/04/2026</option><option>11/06/2026</option></select>
+            <select className="select" value={estado} onChange={(e) => { setPage(1); setEstado(e.target.value); }}><option value="">Estado</option><option>Salida</option><option>Presente</option><option>Ausente</option></select>
           </div>
-        ) : error ? (
-          <div className="card card-body flex items-center gap-2 text-red-600">
-            <AlertCircle className="w-5 h-5" /> {error}
-          </div>
-        ) : registros.length === 0 ? (
-          <div className="card">
-            <EmptyState
-              title="Sin registros"
-              message="No hay asistencias que coincidan con los filtros seleccionados."
-            />
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Trabajador</th>
-                  <th>Cédula</th>
-                  <th>Obra</th>
-                  <th>Tipo</th>
-                  <th>Hora</th>
-                  <th>Estado</th>
+        </div>
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>ID</th><th>Nombre</th><th>Obra</th><th>Fecha</th><th>Ingreso</th><th>Salida</th><th>Estado</th></tr></thead>
+            <tbody>
+              {data.map((r, idx) => (
+                <tr key={r.id + r.nombre} className={idx % 2 ? "bg-slate-50/50" : ""}>
+                  <td>{r.id}</td><td>{r.nombre}</td><td>{r.obra}</td><td>{r.fecha}</td><td>{r.ingreso}</td><td>{r.salida}</td>
+                  <td><span className={`badge ${r.estado === "Presente" ? "bg-[#4CAF50] text-white" : r.estado === "Salida" ? "bg-[#F44336] text-white" : "bg-slate-400 text-white"}`}>{r.estado}</span></td>
                 </tr>
-              </thead>
-              <tbody>
-                {registros.map((r) => (
-                  <tr key={r.id}>
-                    <td className="font-medium">
-                      {r.trabajador || `${r.nombre || ""} ${r.apellido || ""}`.trim() || "—"}
-                    </td>
-                    <td className="font-mono text-xs">{r.cedula}</td>
-                    <td>{r.obra_nombre || r.obra || "—"}</td>
-                    <td>
-                      <span className={r.tipo === "ingreso" ? "badge badge-info" : "badge badge-muted"}>
-                        {r.tipo}
-                      </span>
-                    </td>
-                    <td className="font-mono text-xs">
-                      {r.timestamp ? new Date(r.timestamp).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "—"}
-                    </td>
-                    <td>
-                      <span className={
-                        r.estado === "valido" ? "badge badge-success"
-                          : r.estado === "duplicado" ? "badge badge-warning"
-                            : "badge badge-danger"
-                      }>
-                        {r.estado}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex justify-center text-sm text-slate-600 gap-3">
+          <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>« Previous</button>
+          <span>{page}</span><span>2</span><span>3</span><span>...</span><span>67</span><span>68</span>
+          <button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next »</button>
+        </div>
       </div>
     </>
   );
