@@ -1,70 +1,302 @@
-import { useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import TopBar from "../../components/TopBar";
+import Modal from "../../components/Modal";
+import FlashBanner from "../../components/FlashBanner";
+import * as obrasService from "../../services/obrasService";
 
-const OBRAS = [
-  { id: 1, codigo: "OB-001", nombre: "Mandarino", ciudad: "Bogotá", estado: "activa" },
-  { id: 2, codigo: "OB-002", nombre: "H. Peñalisa", ciudad: "Ibagué", estado: "suspendida" },
-  { id: 3, codigo: "OB-003", nombre: "H. Nakare", ciudad: "Bogotá", estado: "activa" },
-  { id: 4, codigo: "OB-004", nombre: "Proyecto Norte", ciudad: "Tunja", estado: "finalizada" },
-];
+function badgeObra(estado) {
+  if (estado === "activa") return "bg-[#4CAF50] text-white";
+  if (estado === "suspendida") return "bg-orange-400 text-white";
+  return "bg-slate-500 text-white";
+}
+
+function labelEstado(estado) {
+  if (estado === "activa") return "Activa";
+  if (estado === "suspendida") return "Suspendida";
+  return "Finalizada";
+}
 
 export default function Obras() {
   const [q, setQ] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
+  const [lista, setLista] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [flash, setFlash] = useState(null);
+  const [encargadosOpts, setEncargadosOpts] = useState([]);
 
-  const filtradas = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    return OBRAS.filter((o) => {
-      const okQ = !t || `${o.codigo} ${o.nombre} ${o.ciudad}`.toLowerCase().includes(t);
-      const okEstado = !filtroEstado || o.estado === filtroEstado;
-      return okQ && okEstado;
-    });
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    nombre: "",
+    ubicacion: "",
+    encargado: "",
+    fechaInicio: "",
+    estado: "activa",
+  });
+  const [formErr, setFormErr] = useState({});
+
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    const res = await obrasService.getAll({ search: q, estado: filtroEstado });
+    setLoading(false);
+    if (!res.ok) {
+      setFlash({ type: "error", message: res.message });
+      setLista([]);
+      return;
+    }
+    setLista(res.data);
   }, [q, filtroEstado]);
 
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  useEffect(() => {
+    (async () => {
+      const r = await obrasService.getEncargadosOpciones();
+      if (r.ok) setEncargadosOpts(r.data);
+    })();
+  }, []);
+
   const stats = useMemo(() => {
-    const total = filtradas.length;
-    const activos = filtradas.filter((o) => o.estado === "activa").length;
+    const total = lista.length;
+    const activos = lista.filter((o) => o.estado === "activa").length;
     const inactivos = total - activos;
     return { total, activos, inactivos };
-  }, [filtradas]);
+  }, [lista]);
+
+  const abrirCrear = () => {
+    setEditing(null);
+    setFormErr({});
+    setForm({
+      nombre: "",
+      ubicacion: "",
+      encargado: encargadosOpts[0]?.value || "",
+      fechaInicio: "",
+      estado: "activa",
+    });
+    setModalOpen(true);
+  };
+
+  const abrirEditar = async (row) => {
+    setEditing(row);
+    setFormErr({});
+    const res = await obrasService.getById(row.id);
+    if (!res.ok) {
+      setFlash({ type: "error", message: res.message });
+      return;
+    }
+    const o = res.data;
+    setForm({
+      nombre: o.nombre,
+      ubicacion: o.ubicacion,
+      encargado: o.encargado,
+      fechaInicio: o.fechaInicio,
+      estado: o.estado,
+    });
+    setModalOpen(true);
+  };
+
+  const validar = () => {
+    const e = {};
+    if (!form.nombre.trim()) e.nombre = "Obligatorio";
+    if (!form.ubicacion.trim()) e.ubicacion = "Obligatorio";
+    if (!form.encargado) e.encargado = "Obligatorio";
+    if (!form.fechaInicio) e.fechaInicio = "Obligatorio";
+    setFormErr(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const guardar = async (ev) => {
+    ev.preventDefault();
+    if (!validar()) return;
+    setSaving(true);
+    const datos = {
+      nombre: form.nombre.trim(),
+      ubicacion: form.ubicacion.trim(),
+      encargado: form.encargado,
+      fechaInicio: form.fechaInicio,
+      estado: form.estado,
+    };
+    const res = editing
+      ? await obrasService.update(editing.id, datos)
+      : await obrasService.create(datos);
+    setSaving(false);
+    if (!res.ok) {
+      setFlash({ type: "error", message: res.message });
+      return;
+    }
+    setFlash({ type: "ok", message: editing ? "Obra actualizada" : "Obra creada" });
+    setModalOpen(false);
+    await cargar();
+  };
+
+  const eliminar = async (row) => {
+    const adv =
+      row.trabajadoresActivos > 0
+        ? ` Esta obra tiene ${row.trabajadoresActivos} trabajador(es) activo(s) asignado(s).`
+        : "";
+    if (!window.confirm(`¿Eliminar la obra "${row.nombre}"?${adv}`)) return;
+    setLoading(true);
+    const res = await obrasService.remove(row.id);
+    setLoading(false);
+    if (!res.ok) setFlash({ type: "error", message: res.message });
+    else {
+      setFlash({ type: "ok", message: "Obra eliminada" });
+      await cargar();
+    }
+  };
 
   return (
     <>
-      <TopBar right={<button className="btn text-white" style={{ background: "#1565C0" }}><Plus className="w-4 h-4" /> Crear Obra</button>} />
+      <TopBar
+        right={(
+          <button type="button" className="btn text-white" style={{ background: "#1565C0" }} onClick={abrirCrear}>
+            <Plus className="w-4 h-4" /> Agregar Obra
+          </button>
+        )}
+      />
       <div className="p-6 space-y-4">
         <h2 className="text-2xl font-bold text-slate-800">Mis Obras</h2>
+        {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 
         <div className="grid sm:grid-cols-3 gap-4">
-          <div className="rounded-xl bg-white border p-5"><div className="text-3xl font-bold">{stats.total}</div><div className="text-sm text-slate-500">Total Registrados</div></div>
-          <div className="rounded-xl bg-white border p-5"><div className="text-3xl font-bold">{stats.activos}</div><div className="text-sm text-slate-500">Activos</div></div>
-          <div className="rounded-xl bg-white border p-5"><div className="text-3xl font-bold">{stats.inactivos}</div><div className="text-sm text-slate-500">Inactivos</div></div>
+          <div className="rounded-xl bg-white border p-5 shadow-sm">
+            <div className="text-3xl font-bold text-slate-800">{stats.total}</div>
+            <div className="text-sm text-slate-500">Total (filtro actual)</div>
+          </div>
+          <div className="rounded-xl bg-white border p-5 shadow-sm">
+            <div className="text-3xl font-bold text-slate-800">{stats.activos}</div>
+            <div className="text-sm text-slate-500">Activas</div>
+          </div>
+          <div className="rounded-xl bg-white border p-5 shadow-sm">
+            <div className="text-3xl font-bold text-slate-800">{stats.inactivos}</div>
+            <div className="text-sm text-slate-500">Otras</div>
+          </div>
         </div>
 
         <div className="card card-body flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} className="input pl-9" placeholder="Buscar por código, nombre o ciudad…" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="input pl-9"
+              placeholder="Buscar por nombre, ubicación o encargado…"
+            />
           </div>
           <select className="select sm:w-44" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
-            <option value="">Todos</option><option value="activa">Activa</option><option value="suspendida">Suspendida</option><option value="finalizada">Finalizada</option>
+            <option value="">Estado</option>
+            <option value="activa">Activa</option>
+            <option value="suspendida">Suspendida</option>
+            <option value="finalizada">Finalizada</option>
           </select>
         </div>
 
-        <div className="table-wrap">
-          <table className="table">
-            <thead><tr><th>Código</th><th>Nombre</th><th>Ciudad</th><th>Estado</th></tr></thead>
-            <tbody>
-              {filtradas.map((o, idx) => (
-                <tr key={o.id} className={idx % 2 ? "bg-slate-50/50" : ""}>
-                  <td>{o.codigo}</td><td className="font-medium">{o.nombre}</td><td>{o.ciudad}</td>
-                  <td><span className={`badge ${o.estado === "activa" ? "bg-[#4CAF50] text-white" : "bg-[#F44336] text-white"}`}>{o.estado === "activa" ? "Activo" : "Inactivo"}</span></td>
+        {loading ? (
+          <div className="card card-body flex justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-[#1565C0]" />
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Ubicación</th>
+                  <th>Encargado</th>
+                  <th>Inicio</th>
+                  <th>Estado</th>
+                  <th>Trab. activos</th>
+                  <th>% Asist.</th>
+                  <th>Editar</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {lista.map((o, idx) => (
+                  <tr key={o.id} className={idx % 2 ? "bg-slate-50/50" : ""}>
+                    <td>{o.id}</td>
+                    <td className="font-medium">{o.nombre}</td>
+                    <td>{o.ubicacion}</td>
+                    <td>{o.encargado}</td>
+                    <td>{o.fechaInicio}</td>
+                    <td>
+                      <span className={`badge border-0 ${badgeObra(o.estado)}`}>{labelEstado(o.estado)}</span>
+                    </td>
+                    <td>{o.trabajadoresActivos}</td>
+                    <td>{o.porcentajeAsistencia}%</td>
+                    <td className="flex gap-2">
+                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => abrirEditar(o)}>
+                        <Pencil className="w-4 h-4 text-slate-600" />
+                      </button>
+                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => eliminar(o)}>
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Editar obra" : "Agregar obra"}
+        size="lg"
+        footer={(
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
+            <button type="button" className="btn text-white" style={{ background: "#1565C0" }} disabled={saving} onClick={guardar}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {editing ? "Guardar" : "Crear"}
+            </button>
+          </>
+        )}
+      >
+        <form className="space-y-4" onSubmit={guardar}>
+          <div>
+            <label className="label">Nombre</label>
+            <input className="input" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
+            {formErr.nombre && <p className="text-xs text-red-600 mt-1">{formErr.nombre}</p>}
+          </div>
+          <div>
+            <label className="label">Ubicación</label>
+            <input className="input" value={form.ubicacion} onChange={(e) => setForm((f) => ({ ...f, ubicacion: e.target.value }))} />
+            {formErr.ubicacion && <p className="text-xs text-red-600 mt-1">{formErr.ubicacion}</p>}
+          </div>
+          <div>
+            <label className="label">Encargado</label>
+            <select className="select" value={form.encargado} onChange={(e) => setForm((f) => ({ ...f, encargado: e.target.value }))}>
+              <option value="">Seleccione…</option>
+              {encargadosOpts.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {formErr.encargado && <p className="text-xs text-red-600 mt-1">{formErr.encargado}</p>}
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="label">Fecha inicio</label>
+              <input type="date" className="input" value={form.fechaInicio} onChange={(e) => setForm((f) => ({ ...f, fechaInicio: e.target.value }))} />
+              {formErr.fechaInicio && <p className="text-xs text-red-600 mt-1">{formErr.fechaInicio}</p>}
+            </div>
+            <div>
+              <label className="label">Estado</label>
+              <select className="select" value={form.estado} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
+                <option value="activa">Activa</option>
+                <option value="suspendida">Suspendida</option>
+                <option value="finalizada">Finalizada</option>
+              </select>
+            </div>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }
