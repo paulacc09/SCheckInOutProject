@@ -9,6 +9,7 @@ import RegistroEmpresa from "./pages/RegistroEmpresa";
 // Admin
 import Obras from "./pages/admin/Obras";
 import Personal from "./pages/admin/Personal";
+import Roles from "./pages/admin/Roles";
 import Dispositivos from "./pages/admin/Dispositivos";
 import Asistencias from "./pages/admin/Asistencias";
 import Reportes from "./pages/admin/Reportes";
@@ -49,6 +50,7 @@ export default function App() {
           >
             <Route path="/admin/obras" element={<Obras />} />
             <Route path="/admin/personal" element={<Personal />} />
+            <Route path="/admin/roles" element={<Roles />} />
             <Route path="/admin/dispositivos" element={<Dispositivos />} />
             <Route path="/admin/asistencias" element={<Asistencias />} />
             <Route path="/admin/reportes" element={<Reportes />} />
