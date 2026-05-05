@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import PaginationBar from "../../components/PaginationBar";
@@ -12,12 +12,7 @@ const PAGE_SIZE = 10;
 
 function fmtAcceso(iso) {
   if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" });
-  } catch {
-    return iso;
-  }
+  return iso;
 }
 
 export default function Dispositivos() {
@@ -34,6 +29,7 @@ export default function Dispositivos() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const [tipo, setTipo] = useState("Tablet");
   const [form, setForm] = useState({ nombre: "", idManual: "", obra: "", pin: "" });
   const [formErr, setFormErr] = useState({});
@@ -77,6 +73,7 @@ export default function Dispositivos() {
     setEditing(null);
     setFormErr({});
     setTipo("Tablet");
+    setShowPin(false);
     setForm({ nombre: "", idManual: "", obra: obrasOpts[0] || "", pin: "" });
     setModalOpen(true);
   };
@@ -85,6 +82,7 @@ export default function Dispositivos() {
     setEditing(d);
     setFormErr({});
     setTipo(d.tipo);
+    setShowPin(false);
     setForm({
       nombre: d.nombre,
       idManual: d.id,
@@ -152,14 +150,14 @@ export default function Dispositivos() {
   return (
     <>
       <TopBar
+        title="Gestión Dispositivos"
         right={(
-          <button type="button" className="btn text-white" style={{ background: "#1565C0" }} onClick={abrirCrear}>
+          <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} onClick={abrirCrear}>
             <Plus className="w-4 h-4" /> Registrar Dispositivo
           </button>
         )}
       />
-      <div className="p-6 space-y-4">
-        <h2 className="text-2xl font-bold text-slate-800">Gestión Dispositivos</h2>
+      <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
         {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 
         <div className="grid md:grid-cols-4 gap-4">
@@ -254,7 +252,7 @@ export default function Dispositivos() {
         footer={(
           <>
             <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
-            <button type="button" className="btn text-white" style={{ background: "#1565C0" }} disabled={saving} onClick={guardar}>
+            <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} disabled={saving} onClick={guardar}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               {editing ? "Guardar" : "Registrar"}
             </button>
@@ -277,7 +275,7 @@ export default function Dispositivos() {
           </div>
           <div>
             <label className="label">ID dispositivo</label>
-            <input className="input" disabled={!!editing} placeholder="DEV-XXX (auto si vacío)" value={form.idManual} onChange={(e) => setForm((f) => ({ ...f, idManual: e.target.value }))} />
+            <input className="input" placeholder="DEV-001 (auto si vacío)" value={form.idManual} onChange={(e) => setForm((f) => ({ ...f, idManual: e.target.value }))} />
           </div>
           <div>
             <label className="label">Obra asignada</label>
@@ -290,7 +288,12 @@ export default function Dispositivos() {
           </div>
           <div>
             <label className="label">Código de acceso</label>
-            <input className="input" placeholder="PIN 4 a 6 dígitos" value={form.pin} onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value }))} />
+            <div className="relative">
+              <input type={showPin ? "text" : "password"} className="input pr-10" placeholder="PIN 4 a 6 dígitos" value={form.pin} onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value }))} />
+              <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500" onClick={() => setShowPin((v) => !v)}>
+                {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         </form>
       </Modal>

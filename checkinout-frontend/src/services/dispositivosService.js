@@ -56,6 +56,9 @@ export async function create(datos) {
   if (!nombre?.trim() || !tipo) {
     return fail("Nombre y tipo son obligatorios");
   }
+  if (pin && !/^\d{4,6}$/.test(String(pin))) {
+    return fail("El PIN debe tener entre 4 y 6 dígitos");
+  }
   if (obra && !store.obras.some((o) => o.nombre === obra)) {
     return fail("La obra no existe");
   }
@@ -85,6 +88,9 @@ export async function update(id, datos) {
   if (idx === -1) return fail("Dispositivo no encontrado");
   if (datos.obra && !store.obras.some((o) => o.nombre === datos.obra) && datos.obra !== "Sin asignar") {
     return fail("La obra no existe");
+  }
+  if (datos.pin && !/^\d{4,6}$/.test(String(datos.pin))) {
+    return fail("El PIN debe tener entre 4 y 6 dígitos");
   }
   store.dispositivos[idx] = {
     ...store.dispositivos[idx],
@@ -122,5 +128,6 @@ export async function remove(id) {
 }
 
 export function getTiposOpciones() {
+  // TODO: reemplazar con GET /api/dispositivos/tipos
   return [...TIPOS];
 }
