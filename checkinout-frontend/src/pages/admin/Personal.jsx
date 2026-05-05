@@ -141,7 +141,7 @@ export default function Personal() {
   };
 
   const eliminar = async (row) => {
-    if (!window.confirm(`¿Eliminar a ${row.nombre}?`)) return;
+    if (!window.confirm(`¿Eliminar a ${row.nombre}? Esta acción no se puede deshacer`)) return;
     setLoading(true);
     const res = await personalService.remove(row.id);
     setLoading(false);
@@ -155,14 +155,14 @@ export default function Personal() {
   return (
     <>
       <TopBar
+        title="Gestión Personal"
         right={(
-          <button type="button" className="btn text-white" style={{ background: "#1565C0" }} onClick={abrirCrear}>
+          <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} onClick={abrirCrear}>
             <Plus className="w-4 h-4" /> Registrar Trabajador
           </button>
         )}
       />
-      <div className="p-6 space-y-4">
-        <h2 className="text-2xl font-bold text-slate-800">Gestión Personal</h2>
+      <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
         {flash && (
           <FlashBanner
             type={flash.type === "error" ? "error" : "ok"}

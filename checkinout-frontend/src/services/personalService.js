@@ -5,7 +5,7 @@
 import { store } from "./dataStore.js";
 import { delay, ok, fail } from "./serviceUtils.js";
 
-const CARGOS = ["Operario", "Oficial", "Maestro", "Ayudante", "Coordinador"];
+const CARGOS = ["Operario", "Encargado", "Inspector SST"];
 
 // TODO: reemplazar con GET /api/personal?obra=&cargo=&estado=&search=
 export async function getAll(filtros = {}) {
@@ -98,21 +98,25 @@ export async function remove(id) {
 }
 
 export function getCargosOpciones() {
+  // TODO: reemplazar con GET /api/personal/cargos
   return [...CARGOS];
 }
 
 /** Para dropdowns: nombres de obra alineados con store.obras */
 export function getObrasNombresDesdePersonal() {
+  // TODO: reemplazar con GET /api/obras/options
   return store.obras.map((o) => o.nombre);
 }
 
 export function countActivosPorObraNombre(nombreObra) {
+  // TODO: reemplazar con GET /api/personal/count?estado=activo&obra=
   return store.personal.filter(
     (p) => p.obra === nombreObra && p.estado === "activo"
   ).length;
 }
 
 export function listTrabajadoresParaSelect() {
+  // TODO: reemplazar con GET /api/personal/options
   return store.personal.map((p) => ({
     id: p.id,
     label: `${p.nombre} — ${p.documento}`,
