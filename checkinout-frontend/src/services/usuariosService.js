@@ -131,5 +131,6 @@ export async function remove(id) {
 }
 
 export function getRolesOpciones() {
+  // TODO: reemplazar con GET /api/roles/options
   return [...ROLES];
 }

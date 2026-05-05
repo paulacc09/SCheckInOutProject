@@ -11,9 +11,9 @@ import { getNombresObras } from "../../services/obrasService";
 const PAGE_SIZE = 10;
 
 const ROLE_CLASS = {
-  "Inspector SST": "bg-emerald-100 text-emerald-800",
-  Encargado: "bg-amber-100 text-amber-900",
-  Administrador: "bg-blue-100 text-blue-800",
+  "Inspector SST": "bg-[#22c55e] text-white",
+  Encargado: "bg-[#f59e0b] text-white",
+  Administrador: "bg-[#3b82f6] text-white",
 };
 
 export default function Roles() {
@@ -165,14 +165,14 @@ export default function Roles() {
   return (
     <>
       <TopBar
+        title="Gestión Roles"
         right={(
-          <button type="button" className="btn text-white rounded-lg" style={{ background: "#1565C0" }} onClick={abrirCrear}>
+          <button type="button" className="btn text-white rounded-lg" style={{ background: "#1e3a6e" }} onClick={abrirCrear}>
             <Plus className="w-4 h-4" /> Crear Usuario
           </button>
         )}
       />
-      <div className="p-6 space-y-4">
-        <h2 className="text-2xl font-bold text-slate-800">Gestión Roles</h2>
+      <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
         {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 
         <div className="card card-body flex flex-col lg:flex-row gap-3">
@@ -181,7 +181,7 @@ export default function Roles() {
             <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" />
           </div>
           <select className="select sm:w-44" value={rolFiltro} onChange={(e) => setRolFiltro(e.target.value)}>
-            <option value="">Rol</option>
+            <option value="">Todos</option>
             {rolesOpts.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
@@ -247,9 +247,9 @@ export default function Roles() {
 
         <div className="text-sm text-slate-600">
           Roles disponibles:{" "}
-          <span className="badge bg-emerald-100 text-emerald-700">Inspector SST</span>{" "}
-          <span className="badge bg-amber-100 text-amber-700">Encargado</span>{" "}
-          <span className="badge bg-blue-100 text-blue-700">Administrador</span>
+          <span className="badge bg-[#22c55e] text-white">Inspector SST</span>{" "}
+          <span className="badge bg-[#f59e0b] text-white">Encargado</span>{" "}
+          <span className="badge bg-[#3b82f6] text-white">Administrador</span>
         </div>
       </div>
 
@@ -261,9 +261,9 @@ export default function Roles() {
         footer={(
           <>
             <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
-            <button type="button" className="btn text-white" style={{ background: "#1565C0" }} disabled={saving} onClick={guardar}>
+            <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} disabled={saving} onClick={guardar}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Guardar
+              {editingId ? "Guardar cambios" : "Crear"}
             </button>
           </>
         )}
@@ -281,7 +281,8 @@ export default function Roles() {
           </div>
           <div>
             <label className="label">Contraseña {editingId && "(opcional)"}</label>
-            <input className="input" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Mínimo 8 caracteres" />
+            <input className="input" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={editingId ? "Dejar vacío para no cambiar" : "Mínimo 8 caracteres"} />
+            <p className="text-xs text-slate-500 mt-1">Mínimo 8 caracteres</p>
             {formErr.password && <p className="text-xs text-red-600 mt-1">{formErr.password}</p>}
           </div>
           <div>
