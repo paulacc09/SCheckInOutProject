@@ -2,7 +2,7 @@ import { Bell, Settings, UserCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-export default function TopBar({ right }) {
+export default function TopBar({ right, title }) {
   const { usuario } = useAuth();
   const navigate = useNavigate();
   const esAdmin = usuario?.rol === "administrador";
@@ -18,17 +18,17 @@ export default function TopBar({ right }) {
       : usuario?.rol === "inspector_sst"
         ? "/sst/personal"
         : "/encargado/personal";
-  const seccionTitulo =
+  const rolTitulo =
     usuario?.rol === "inspector_sst"
-      ? "INSPECTOR SST"
+      ? "Inspector SST"
       : usuario?.rol === "encargado"
-        ? "ENCARGADO"
-        : "ADMINISTRATIVO";
+        ? "Encargado"
+        : "Administrador";
 
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200">
-      <div className="text-base sm:text-lg font-semibold tracking-wide text-slate-800">
-        CHECKINOUT - {seccionTitulo}
+      <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-800">
+        {title || "CheckInOut"}
       </div>
       <div className="flex items-center gap-2">
         {right}
@@ -48,12 +48,14 @@ export default function TopBar({ right }) {
             <Settings className="w-5 h-5 text-slate-600" />
           </button>
         )}
-        <button
-          className="p-1 rounded-full hover:bg-slate-100"
-          title="Perfil"
-          onClick={() => navigate(perfilPath)}
-        >
-          <UserCircle2 className="w-8 h-8 text-slate-600" />
+        <button className="p-1 rounded-full hover:bg-slate-100" title="Perfil" onClick={() => navigate(perfilPath)}>
+          <div className="flex items-center gap-2">
+            <UserCircle2 className="w-8 h-8 text-slate-600" />
+            <div className="hidden md:block text-left">
+              <div className="text-sm text-slate-700 leading-tight">{usuario?.nombre || "Usuario"}</div>
+              <div className="text-xs text-slate-500 leading-tight">{rolTitulo}</div>
+            </div>
+          </div>
         </button>
       </div>
     </header>

@@ -43,7 +43,7 @@ export default function Sidebar() {
   const items = NAV[usuario.rol] || [];
 
   return (
-    <aside className="flex flex-col w-[100px] min-h-screen text-slate-200" style={{ background: "#1a1a2e" }}>
+    <aside className="flex flex-col w-[108px] min-h-screen text-slate-200" style={{ background: "#1e2a4a" }}>
       {/* Branding */}
       <div className="px-2 py-5 border-b border-white/10">
         <div className="flex flex-col items-center gap-2 text-center">
@@ -68,7 +68,7 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[10px] text-center transition-colors ${
                 isActive
-                  ? "bg-[#1565C0] text-white shadow-sm"
+                  ? "bg-[#2a4f88] text-white shadow-sm"
                   : "text-slate-300 hover:bg-white/5 hover:text-white"
               }`
             }

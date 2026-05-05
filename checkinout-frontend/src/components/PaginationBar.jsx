@@ -10,7 +10,7 @@ export default function PaginationBar({ page, totalPages, onChange }) {
         disabled={page <= 1}
         onClick={() => onChange(page - 1)}
       >
-        « Previous
+        ← Previous
       </button>
       {nums.map((p, i) =>
         p === "…" ? (
@@ -34,7 +34,7 @@ export default function PaginationBar({ page, totalPages, onChange }) {
         disabled={page >= totalPages}
         onClick={() => onChange(page + 1)}
       >
-        Next »
+        Next →
       </button>
     </div>
   );
