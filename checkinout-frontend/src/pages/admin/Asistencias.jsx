@@ -39,9 +39,10 @@ export default function Asistencias() {
   const [obra, setObra] = useState("");
   const [fecha, setFecha] = useState("");
   const [estado, setEstado] = useState("");
+  const [tipoRegistro, setTipoRegistro] = useState("");
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState([]);
-  const [stats, setStats] = useState({ total: 0, activos: 0, inactivos: 0 });
+  const [stats, setStats] = useState({ total: 0, asistenciaDia: 0, activosEmpresa: 0 });
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(null);
   const [obrasOpts, setObrasOpts] = useState([]);
@@ -74,6 +75,7 @@ export default function Asistencias() {
       obra,
       fecha,
       estado,
+      tipo: tipoRegistro,
     });
     setLoading(false);
     if (!res.ok) {
@@ -83,7 +85,7 @@ export default function Asistencias() {
     }
     setRows(res.data.rows);
     setStats(res.data.stats);
-  }, [q, obra, fecha, estado]);
+  }, [q, obra, fecha, estado, tipoRegistro]);
 
   useEffect(() => {
     cargar();
@@ -98,7 +100,7 @@ export default function Asistencias() {
 
   useEffect(() => {
     setPage(1);
-  }, [q, obra, fecha, estado]);
+  }, [q, obra, fecha, estado, tipoRegistro]);
 
   const { items: pageRows, totalPages, page: safePage } = useMemo(
     () => paginate(rows, page, PAGE_SIZE),
@@ -115,6 +117,7 @@ export default function Asistencias() {
       fecha: hoyIso(),
       ingreso: "",
       salida: "",
+      tipo: "Normal",
       estado: "",
     });
     setModalOpen(true);
@@ -136,6 +139,7 @@ export default function Asistencias() {
       fecha: r.fecha,
       ingreso: r.ingreso || "",
       salida: r.salida || "",
+      tipo: r.tipo || "Normal",
       estado: r.estado,
     });
     setModalOpen(true);
@@ -160,6 +164,7 @@ export default function Asistencias() {
       fecha: form.fecha,
       ingreso: form.ingreso.trim(),
       salida: form.salida.trim(),
+      tipo: form.tipo,
       estado: form.estado || undefined,
     };
     const res = editing
@@ -193,28 +198,24 @@ export default function Asistencias() {
   return (
     <>
       <TopBar
+        title="Gestión Asistencias"
         right={(
-          <button type="button" className="btn text-white" style={{ background: "#1565C0" }} onClick={abrirCrear}>
+          <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} onClick={abrirCrear}>
             <Plus className="w-4 h-4" /> Registrar Asistencia
           </button>
         )}
       />
-      <div className="p-6 space-y-4">
-        <h2 className="text-2xl font-bold text-slate-800">Gestión Asistencias</h2>
+      <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
         {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 
         <div className="grid sm:grid-cols-3 gap-4">
           <div className="rounded-xl bg-white border p-5 shadow-sm">
-            <div className="text-3xl font-bold text-slate-800">{stats.total}</div>
-            <div className="text-sm text-slate-500">Total (vista actual)</div>
+            <div className="text-3xl font-bold text-slate-800">{stats.asistenciaDia}%</div>
+            <div className="text-sm text-slate-500">Asistencia del día</div>
           </div>
           <div className="rounded-xl bg-white border p-5 shadow-sm">
-            <div className="text-3xl font-bold text-slate-800">{stats.activos}</div>
-            <div className="text-sm text-slate-500">Activos</div>
-          </div>
-          <div className="rounded-xl bg-white border p-5 shadow-sm">
-            <div className="text-3xl font-bold text-slate-800">{stats.inactivos}</div>
-            <div className="text-sm text-slate-500">Inactivos</div>
+            <div className="text-3xl font-bold text-slate-800">{stats.activosEmpresa}</div>
+            <div className="text-sm text-slate-500">Activos (empresa)</div>
           </div>
         </div>
 
@@ -225,6 +226,12 @@ export default function Asistencias() {
           </div>
           <select className="select" value={obra} onChange={(e) => setObra(e.target.value)}>
             <option value="">Obra</option>
+          <select className="select" value={tipoRegistro} onChange={(e) => setTipoRegistro(e.target.value)}>
+            <option value="">Tipo registro</option>
+            <option value="Normal">Normal</option>
+            <option value="Permiso">Permiso</option>
+            <option value="Incapacidad">Incapacidad</option>
+          </select>
             {obrasOpts.map((o) => (
               <option key={o} value={o}>{o}</option>
             ))}
@@ -354,9 +361,16 @@ export default function Asistencias() {
             </div>
           </div>
           <div>
-            <label className="label">Estado (opcional; si vacío se infiere)</label>
+            <label className="label">Tipo</label>
+            <select className="select" value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}>
+              <option>Normal</option>
+              <option>Permiso</option>
+              <option>Incapacidad</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Estado</label>
             <select className="select" value={form.estado} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
-              <option value="">Inferir automáticamente</option>
               <option>Presente</option>
               <option>Ausente</option>
               <option>Salida</option>

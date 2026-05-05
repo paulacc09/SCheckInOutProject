@@ -5,6 +5,7 @@
 import { store } from "./dataStore.js";
 import { delay, ok, fail } from "./serviceUtils.js";
 
+// TODO: reemplazar con reglas de negocio del backend en POST/PUT /api/asistencias
 function inferirEstado({ ingreso, salida, estadoManual }) {
   if (estadoManual && ["Presente", "Ausente", "Salida"].includes(estadoManual)) {
     return estadoManual;
@@ -16,18 +17,25 @@ function inferirEstado({ ingreso, salida, estadoManual }) {
   return "Salida";
 }
 
+// TODO: reemplazar con GET /api/asistencias/stats
 function statsFrom(list) {
+  const hoy = "2026-04-11";
+  const hoyRows = list.filter((r) => r.fecha === hoy);
+  const presentesHoy = hoyRows.filter((r) => r.estado !== "Ausente").length;
+  const esperadoHoy = Math.max(hoyRows.length, 1);
+  const asistenciaDia = Math.round((presentesHoy / esperadoHoy) * 100);
+  const activosEmpresa = store.personal.filter((p) => p.estado === "activo").length;
   return {
+    asistenciaDia,
+    activosEmpresa,
     total: list.length,
-    activos: list.filter((r) => r.estado !== "Ausente").length,
-    inactivos: list.filter((r) => r.estado === "Ausente").length,
   };
 }
 
 // TODO: reemplazar con GET /api/asistencias?obra=&fecha=&estado=&search=
 export async function getAll(filtros = {}) {
   await delay();
-  const { obra = "", fecha = "", estado = "", search = "" } = filtros;
+  const { obra = "", fecha = "", estado = "", tipo = "", search = "" } = filtros;
   const t = String(search).trim().toLowerCase();
   let rows = store.asistencias.map((r) => ({
     ...r,
@@ -37,6 +45,7 @@ export async function getAll(filtros = {}) {
   if (obra) rows = rows.filter((r) => r.obra === obra);
   if (fecha) rows = rows.filter((r) => r.fecha === fecha);
   if (estado) rows = rows.filter((r) => r.estado === estado);
+  if (tipo) rows = rows.filter((r) => r.tipo === tipo);
   return ok({ rows, stats: statsFrom(rows) });
 }
 
@@ -57,6 +66,7 @@ export async function create(datos) {
     fecha,
     ingreso,
     salida,
+    tipo = "Normal",
     estado: estadoManual,
   } = datos;
   if (!trabajadorId || !obra || !fecha) {
@@ -78,6 +88,7 @@ export async function create(datos) {
     ingreso: ingreso || "",
     salida: salida || "",
     estado,
+    tipo,
   };
   store.asistencias.push(row);
   return ok(row);
@@ -119,6 +130,7 @@ export async function update(id, datos) {
     ingreso,
     salida,
     estado,
+    tipo: datos.tipo ?? cur.tipo ?? "Normal",
   };
   return ok(store.asistencias[idx]);
 }
@@ -134,5 +146,6 @@ export async function remove(id) {
 
 /** Todas las filas (para reportes) sin filtros de UI */
 export function getAllRaw() {
+  // TODO: reemplazar con GET /api/asistencias
   return [...store.asistencias];
 }
