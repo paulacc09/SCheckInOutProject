@@ -1,280 +1,254 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ClipboardList,
+  Clock3,
+  HardDrive,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  UserRound,
+  Users,
+} from "lucide-react";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
-import FlashBanner from "../../components/FlashBanner";
 import PaginationBar from "../../components/PaginationBar";
+import FlashBanner from "../../components/FlashBanner";
 import { paginate } from "../../services/pagination";
 import * as obrasService from "../../services/obrasService";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 8;
 
 function badgeObra(estado) {
-  if (estado === "activa") return "bg-[#4CAF50] text-white";
-  if (estado === "suspendida") return "bg-orange-400 text-white";
-  return "bg-slate-500 text-white";
-}
-
-function labelEstado(estado) {
-  if (estado === "activa") return "Activa";
-  if (estado === "suspendida") return "Suspendida";
-  return "Finalizada";
+  if (estado === "activa") return "bg-[#dcfce7] text-[#16a34a]";
+  if (estado === "suspendida") return "bg-[#fef3c7] text-[#b45309]";
+  return "bg-[#f3f4f6] text-[#6b7280]";
 }
 
 export default function Obras() {
   const [q, setQ] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("");
-  const [lista, setLista] = useState([]);
+  const [estado, setEstado] = useState("");
   const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [stats, setStats] = useState({
+    trabajadoresActivos: 0,
+    asistenciaPromedio: 0,
+    asistenciasSinJustificar: 0,
+    pendientes: 0,
+  });
+  const [pendientes, setPendientes] = useState([]);
+  const [pendTipo, setPendTipo] = useState("Todos");
+  const [pendObra, setPendObra] = useState("Todas");
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(null);
-  const [encargadosOpts, setEncargadosOpts] = useState([]);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [selectedObra, setSelectedObra] = useState(null);
+  const [formErr, setFormErr] = useState({});
   const [form, setForm] = useState({
+    id: "",
     nombre: "",
-    codigo: "",
     ubicacion: "",
-    encargado: "",
-    fechaInicio: "",
     estado: "activa",
   });
-  const [formErr, setFormErr] = useState({});
 
   const cargar = useCallback(async () => {
     setLoading(true);
-    const res = await obrasService.getAll({ search: q, estado: filtroEstado });
+    const [obrasRes, statsRes, pendientesRes] = await Promise.all([
+      obrasService.getAll({ search: q, estado }),
+      obrasService.getGlobalStats(),
+      obrasService.getPendientes({ tipo: pendTipo, obra: pendObra }),
+    ]);
     setLoading(false);
-    if (!res.ok) {
-      setFlash({ type: "error", message: res.message });
-      setLista([]);
-      return;
-    }
-    setLista(res.data);
-  }, [q, filtroEstado]);
+    if (!obrasRes.ok) return setFlash({ type: "error", message: obrasRes.message });
+    if (!statsRes.ok) return setFlash({ type: "error", message: statsRes.message });
+    if (!pendientesRes.ok) return setFlash({ type: "error", message: pendientesRes.message });
+    setRows(obrasRes.data);
+    setStats(statsRes.data);
+    setPendientes(pendientesRes.data);
+  }, [q, estado, pendTipo, pendObra]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
   useEffect(() => {
-    (async () => {
-      const r = await obrasService.getEncargadosOpciones();
-      if (r.ok) setEncargadosOpts(r.data);
-    })();
-  }, []);
-
-  useEffect(() => {
     setPage(1);
-  }, [q, filtroEstado]);
+  }, [q, estado]);
 
-  const stats = useMemo(() => {
-    const total = lista.length;
-    const activos = lista.filter((o) => o.estado === "activa").length;
-    const inactivos = total - activos;
-    return { total, activos, inactivos };
-  }, [lista]);
-  const { items: pageRows, total, totalPages, page: safePage } = useMemo(
-    () => paginate(lista, page, PAGE_SIZE),
-    [lista, page]
+  const obrasOptions = useMemo(() => ["Todas", ...rows.map((o) => o.nombre)], [rows]);
+  const { items: pageRows, totalPages, page: safePage } = useMemo(
+    () => paginate(rows, page, PAGE_SIZE),
+    [rows, page]
   );
 
-  const abrirCrear = () => {
-    setEditing(null);
+  const openCreate = async () => {
+    setEditingId(null);
     setFormErr({});
     setForm({
+      id: obrasService.getNextObraId(),
       nombre: "",
-      codigo: String(8000 + lista.length + 1).padStart(5, "0"),
       ubicacion: "",
-      encargado: encargadosOpts[0]?.value || "",
-      fechaInicio: "",
       estado: "activa",
     });
     setModalOpen(true);
   };
 
-  const abrirEditar = async (row) => {
-    setEditing(row);
+  const openEdit = (row) => {
+    setEditingId(row.id);
     setFormErr({});
-    const res = await obrasService.getById(row.id);
-    if (!res.ok) {
-      setFlash({ type: "error", message: res.message });
-      return;
-    }
-    const o = res.data;
     setForm({
-      nombre: o.nombre,
-      codigo: o.codigo || "",
-      ubicacion: o.ubicacion,
-      encargado: o.encargado,
-      fechaInicio: o.fechaInicio,
-      estado: o.estado,
+      id: row.id,
+      nombre: row.nombre,
+      ubicacion: row.ubicacion,
+      estado: row.estado,
     });
     setModalOpen(true);
   };
 
-  const validar = () => {
-    const e = {};
-    if (!form.nombre.trim()) e.nombre = "Obligatorio";
-    if (!form.ubicacion.trim()) e.ubicacion = "Obligatorio";
-    if (!form.codigo.trim()) e.codigo = "Obligatorio";
-    setFormErr(e);
-    return Object.keys(e).length === 0;
+  const validate = () => {
+    const err = {};
+    if (!form.nombre.trim()) err.nombre = "El nombre es obligatorio";
+    if (!form.ubicacion.trim()) err.ubicacion = "La ubicación es obligatoria";
+    setFormErr(err);
+    return Object.keys(err).length === 0;
   };
 
-  const guardar = async (ev) => {
-    ev.preventDefault();
-    if (!validar()) return;
+  const save = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
     setSaving(true);
-    const datos = {
-      nombre: form.nombre.trim(),
-      codigo: form.codigo.trim(),
-      ubicacion: form.ubicacion.trim(),
-      encargado: form.encargado,
-      fechaInicio: form.fechaInicio,
+    const payload = {
+      id: form.id,
+      nombre: form.nombre,
+      ubicacion: form.ubicacion,
       estado: form.estado,
     };
-    const res = editing
-      ? await obrasService.update(editing.id, datos)
-      : await obrasService.create(datos);
+    const res = editingId
+      ? await obrasService.update(editingId, payload)
+      : await obrasService.create(payload);
     setSaving(false);
-    if (!res.ok) {
-      setFlash({ type: "error", message: res.message });
-      return;
-    }
-    setFlash({ type: "ok", message: editing ? "Obra actualizada" : "Obra creada" });
+    if (!res.ok) return setFlash({ type: "error", message: res.message });
     setModalOpen(false);
+    setFlash({ type: "ok", message: editingId ? "Obra actualizada" : "Obra creada" });
     await cargar();
   };
 
-  const eliminar = async (row) => {
-    if (!window.confirm(`¿Eliminar la obra "${row.nombre}"? Esta acción no se puede deshacer.`)) return;
-    setLoading(true);
+  const removeRow = async (row) => {
+    if (!window.confirm(`¿Eliminar la obra ${row.nombre}? Esta acción no se puede deshacer`)) return;
     const res = await obrasService.remove(row.id);
-    setLoading(false);
-    if (!res.ok) setFlash({ type: "error", message: res.message });
-    else {
-      setFlash({ type: "ok", message: "Obra eliminada" });
-      await cargar();
-    }
+    if (!res.ok) return setFlash({ type: "error", message: res.message });
+    setFlash({ type: "ok", message: "Obra eliminada" });
+    await cargar();
   };
 
-  const abrirDetalle = async (row) => {
-    const res = await obrasService.getById(row.id);
-    if (!res.ok) {
-      setFlash({ type: "error", message: res.message });
-      return;
-    }
-    setSelectedObra(res.data);
+  const iconByType = (tipo) => {
+    if (tipo === "Médico") return <UserRound className="w-4 h-4 text-[#3b82f6]" />;
+    if (tipo === "Asistencia") return <ClipboardList className="w-4 h-4 text-[#22c55e]" />;
+    return <HardDrive className="w-4 h-4 text-[#f59e0b]" />;
   };
-
-  if (selectedObra) {
-    return (
-      <>
-        <TopBar title={`${selectedObra.nombre} (${selectedObra.codigo})`} />
-        <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
-          <button className="btn btn-outline" onClick={() => setSelectedObra(null)}>Volver a la lista</button>
-          <div className="grid md:grid-cols-5 gap-4">
-            <div className="card card-body"><div className="text-2xl font-bold">{selectedObra.personal}</div><div className="text-sm text-slate-500">Personal Asignado</div></div>
-            <div className="card card-body"><div className="text-2xl font-bold">{selectedObra.presente}</div><div className="text-sm text-slate-500">Personal Presente</div></div>
-            <div className="card card-body"><div className="text-2xl font-bold">{selectedObra.porcentajeAsistencia}%</div><div className="text-sm text-slate-500">% Asistencia Promedio Hoy</div></div>
-            <div className="card card-body"><div className="text-2xl font-bold">{selectedObra.asistSinJustificar}</div><div className="text-sm text-slate-500">Asistencias sin Justificar</div></div>
-            <div className="card card-body"><div className="text-2xl font-bold">{selectedObra.pendientesCount}</div><div className="text-sm text-slate-500">Pendientes</div></div>
-          </div>
-          <div className="card card-body">
-            <h3 className="font-semibold text-slate-800 mb-2">Pendientes</h3>
-            <ul className="space-y-2 text-sm text-slate-700">
-              {selectedObra.pendientes?.length ? selectedObra.pendientes.map((p, i) => <li key={`${p}-${i}`}>- {p}</li>) : <li>- Sin pendientes</li>}
-            </ul>
-          </div>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
       <TopBar
         title="Mis Obras"
-        right={(
-          <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} onClick={abrirCrear}>
+        right={
+          <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} onClick={openCreate}>
             <Plus className="w-4 h-4" /> Crear Obra
           </button>
-        )}
+        }
       />
       <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
         {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 
-        <div className="grid sm:grid-cols-3 gap-4">
-          <div className="rounded-xl bg-white border p-5 shadow-sm">
-            <div className="text-3xl font-bold text-slate-800">{stats.total}</div>
-            <div className="text-sm text-slate-500">Total (filtro actual)</div>
-          </div>
-          <div className="rounded-xl bg-white border p-5 shadow-sm">
-            <div className="text-3xl font-bold text-slate-800">{stats.activos}</div>
-            <div className="text-sm text-slate-500">Activas</div>
-          </div>
-          <div className="rounded-xl bg-white border p-5 shadow-sm">
-            <div className="text-3xl font-bold text-slate-800">{stats.inactivos}</div>
-            <div className="text-sm text-slate-500">Otras</div>
-          </div>
-        </div>
-
         <div className="card card-body flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="input pl-9"
-              placeholder="Buscar por nombre, ubicación o encargado…"
-            />
+            <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." />
           </div>
-          <select className="select sm:w-44" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
+          <select className="select sm:w-48" value={estado} onChange={(e) => setEstado(e.target.value)}>
             <option value="">Todos los estados</option>
-            <option value="activa">Activa</option>
-            <option value="suspendida">Suspendida</option>
-            <option value="finalizada">Finalizada</option>
+            <option value="activa">activa</option>
+            <option value="finalizada">finalizada</option>
+            <option value="suspendida">suspendida</option>
           </select>
         </div>
 
-        {loading ? (
-          <div className="card card-body flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-[#1565C0]" />
+        <div className="grid md:grid-cols-4 gap-4">
+          <div className="card card-body"><div className="flex items-center gap-2"><Users className="w-5 h-5 text-[#3b82f6]" /><div className="text-[30px] font-bold">{stats.trabajadoresActivos}</div></div><div className="text-xs text-slate-500">Trabajadores Activos</div></div>
+          <div className="card card-body"><div className="flex items-center gap-2"><ClipboardList className="w-5 h-5 text-[#22c55e]" /><div className="text-[30px] font-bold">{stats.asistenciaPromedio}%</div></div><div className="text-xs text-slate-500">Asistencia Promedio Hoy</div></div>
+          <div className="card card-body"><div className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-[#f59e0b]" /><div className="text-[30px] font-bold">{stats.asistenciasSinJustificar}</div></div><div className="text-xs text-slate-500">Asistencias sin Justificar</div></div>
+          <div className="card card-body"><div className="flex items-center gap-2"><Clock3 className="w-5 h-5 text-[#ef4444]" /><div className="text-[30px] font-bold">{stats.pendientes}</div></div><div className="text-xs text-slate-500">Pendientes</div></div>
+        </div>
+
+        <div className="card card-body space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-slate-800">Pendientes</h3>
+            <span className="inline-flex w-7 h-7 items-center justify-center rounded-full bg-red-100 text-red-600 text-sm font-semibold">{stats.pendientes}</span>
           </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <select className="select" value={pendTipo} onChange={(e) => setPendTipo(e.target.value)}>
+              <option>Todos</option>
+              <option>Médico</option>
+              <option>Asistencia</option>
+              <option>Dispositivo</option>
+            </select>
+            <select className="select" value={pendObra} onChange={(e) => setPendObra(e.target.value)}>
+              {obrasOptions.map((o) => (
+                <option key={o}>{o}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            {pendientes.length ? (
+              pendientes.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 bg-white">
+                  <div className="flex items-center gap-2">
+                    {iconByType(p.tipo)}
+                    <div>
+                      <div className="text-sm font-semibold">{p.titulo}</div>
+                      <div className="text-xs text-slate-500">{p.trabajador ? `${p.trabajador} — ${p.obra}` : p.obra}</div>
+                    </div>
+                  </div>
+                  <span className={`badge ${p.tipo === "Médico" ? "bg-blue-100 text-blue-700" : p.tipo === "Asistencia" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+                    {p.tipo}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-slate-500 text-center py-4">No hay pendientes para los filtros seleccionados</div>
+            )}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="card card-body text-center text-slate-500">Cargando...</div>
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Código</th>
+                  <th>ID_OBRA</th>
                   <th>Nombre</th>
                   <th>Ubicación</th>
                   <th>Estado</th>
                   <th>Personal</th>
-                  <th>Editar</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {pageRows.map((o, idx) => (
-                  <tr key={o.id} className={`${idx % 2 ? "bg-slate-50/50" : ""} cursor-pointer`} onClick={() => abrirDetalle(o)}>
-                    <td>{o.codigo}</td>
-                    <td className="font-medium">{o.nombre}</td>
+                {pageRows.map((o) => (
+                  <tr key={o.id}>
+                    <td>{o.id}</td>
+                    <td>{o.nombre}</td>
                     <td>{o.ubicacion}</td>
-                    <td>
-                      <span className={`badge border-0 ${badgeObra(o.estado)}`}>{labelEstado(o.estado)}</span>
-                    </td>
-                    <td>{o.personal}</td>
+                    <td><span className={`badge ${badgeObra(o.estado)}`}>{o.estado}</span></td>
+                    <td>{o.personal ?? 0}</td>
                     <td className="flex gap-2">
-                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); abrirEditar(o); }}>
-                        <Pencil className="w-4 h-4 text-slate-600" />
-                      </button>
-                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); eliminar(o); }}>
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </button>
+                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => openEdit(o)}><Pencil className="w-4 h-4 text-slate-600" /></button>
+                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => removeRow(o)}><Trash2 className="w-4 h-4 text-red-600" /></button>
                     </td>
                   </tr>
                 ))}
@@ -282,34 +256,31 @@ export default function Obras() {
             </table>
           </div>
         )}
-        {!loading && total > 0 && <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />}
+        {!!rows.length && <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />}
       </div>
 
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "Editar Obra" : "Crear Obra"}
-        size="lg"
-        footer={(
+        title={editingId ? "Editar Obra" : "Crear Nueva Obra"}
+        footer={
           <>
             <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
-            <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} disabled={saving} onClick={guardar}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {editing ? "Guardar cambios" : "Crear Obra"}
+            <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} disabled={saving} onClick={save}>
+              {editingId ? "Guardar cambios" : "Crear Obra"}
             </button>
           </>
-        )}
+        }
       >
-        <form className="space-y-4" onSubmit={guardar}>
+        <form className="space-y-3" onSubmit={save}>
+          <div>
+            <label className="label">ID Obra</label>
+            <input className="input" value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} />
+          </div>
           <div>
             <label className="label">Nombre de la obra</label>
             <input className="input" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
             {formErr.nombre && <p className="text-xs text-red-600 mt-1">{formErr.nombre}</p>}
-          </div>
-          <div>
-            <label className="label">Código</label>
-            <input className="input" value={form.codigo} onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))} />
-            {formErr.codigo && <p className="text-xs text-red-600 mt-1">{formErr.codigo}</p>}
           </div>
           <div>
             <label className="label">Ubicación / Ciudad</label>
@@ -317,29 +288,12 @@ export default function Obras() {
             {formErr.ubicacion && <p className="text-xs text-red-600 mt-1">{formErr.ubicacion}</p>}
           </div>
           <div>
-            <label className="label">Encargado</label>
-            <select className="select" value={form.encargado} onChange={(e) => setForm((f) => ({ ...f, encargado: e.target.value }))}>
-              <option value="">Seleccione…</option>
-              {encargadosOpts.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+            <label className="label">Estado</label>
+            <select className="select" value={form.estado} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
+              <option value="activa">activa</option>
+              <option value="finalizada">finalizada</option>
+              <option value="suspendida">suspendida</option>
             </select>
-            {formErr.encargado && <p className="text-xs text-red-600 mt-1">{formErr.encargado}</p>}
-          </div>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <label className="label">Fecha inicio</label>
-              <input type="date" className="input" value={form.fechaInicio} onChange={(e) => setForm((f) => ({ ...f, fechaInicio: e.target.value }))} />
-              {formErr.fechaInicio && <p className="text-xs text-red-600 mt-1">{formErr.fechaInicio}</p>}
-            </div>
-            <div>
-              <label className="label">Estado</label>
-              <select className="select" value={form.estado} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
-                <option value="activa">Activa</option>
-                <option value="suspendida">Suspendida</option>
-                <option value="finalizada">Finalizada</option>
-              </select>
-            </div>
           </div>
         </form>
       </Modal>

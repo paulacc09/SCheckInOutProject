@@ -1,158 +1,124 @@
-/**
- * Mis Obras — CRUD en memoria.
- * Datos base en ./dataStore.js
- */
 import { store } from "./dataStore.js";
 import { delay, ok, fail } from "./serviceUtils.js";
-import { countActivosPorObraNombre } from "./personalService.js";
 
-// TODO: reemplazar con lógica de agregación de GET /api/obras/:id/estadisticas
-function porcentajeAsistenciaMock(nombreObra) {
-  const activos = countActivosPorObraNombre(nombreObra);
-  const regs = store.asistencias.filter(
-    (a) => a.obra === nombreObra && a.fecha === "2026-04-11"
-  );
-  const conIngreso = regs.filter((a) => a.ingreso && String(a.ingreso).trim()).length;
-  if (!activos) return 0;
-  return Math.min(100, Math.round((conIngreso / Math.max(activos, 1)) * 100));
+const pendientes = [
+  { id: 1, tipo: "Médico", titulo: "Permiso Médico", trabajador: "Julio Sanchez", obra: "Mandarino" },
+  { id: 2, tipo: "Asistencia", titulo: "Nueva Asistencia Registrada", trabajador: null, obra: "Edificio Torre Central" },
+  { id: 3, tipo: "Dispositivo", titulo: "Nuevo Dispositivo Ingresado", trabajador: null, obra: "Conjunto Residencial Norte" },
+];
+
+function normalEstado(estado) {
+  return String(estado || "").toLowerCase();
 }
 
-// TODO: reemplazar con mapper de respuesta de GET /api/obras
-function enrich(obra) {
-  const personal = countActivosPorObraNombre(obra.nombre);
-  const presente = Number(obra.presente || 0);
-  const asistSinJustificar = Math.max(0, personal - presente);
-  const pendientes = Array.isArray(obra.pendientes) ? obra.pendientes : [];
-  return {
-    ...obra,
-    personal,
-    presente,
-    asistSinJustificar,
-    pendientes,
-    trabajadoresActivos: personal,
-    porcentajeAsistencia: porcentajeAsistenciaMock(obra.nombre),
-    pendientesCount: pendientes.length,
-  };
-}
-
-// TODO: reemplazar con GET /api/obras?search=&estado=
+// TODO: reemplazar con GET /api/obras?estado=X&search=Y
 export async function getAll(filtros = {}) {
   await delay();
   const { search = "", estado = "" } = filtros;
-  const t = String(search).trim().toLowerCase();
-  let rows = store.obras.map(enrich);
-  if (t) {
-    rows = rows.filter(
-      (o) =>
-        `${o.nombre} ${o.ubicacion} ${o.encargado}`.toLowerCase().includes(t)
-    );
+  const q = String(search).trim().toLowerCase();
+  let rows = [...store.obras];
+  if (q) {
+    rows = rows.filter((o) => `${o.id} ${o.nombre} ${o.ubicacion}`.toLowerCase().includes(q));
   }
-  if (estado) rows = rows.filter((o) => o.estado === estado);
+  if (estado) {
+    rows = rows.filter((o) => normalEstado(o.estado) === normalEstado(estado));
+  }
   return ok(rows);
 }
 
 // TODO: reemplazar con GET /api/obras/:id
 export async function getById(id) {
   await delay();
-  const o = store.obras.find((x) => x.id === Number(id));
-  if (!o) return fail("Obra no encontrada");
-  return ok(enrich(o));
+  const row = store.obras.find((o) => o.id === id);
+  if (!row) return fail("Obra no encontrada");
+  return ok({ ...row });
 }
 
-// TODO: reemplazar con GET /api/obras/:id/estadisticas
-export async function getEstadisticas(id) {
-  await delay();
-  const r = await getById(id);
-  if (!r.ok) return r;
-  return ok({
-    personal: r.data.personal,
-    presente: r.data.presente,
-    porcentajeAsistencia: r.data.porcentajeAsistencia,
-    asistSinJustificar: r.data.asistSinJustificar,
-    pendientesCount: r.data.pendientesCount,
-    pendientes: r.data.pendientes,
-  });
-}
-
-// TODO: reemplazar con POST /api/obras (body: nombre, ubicacion, encargado, fechaInicio, estado)
+// TODO: reemplazar con POST /api/obras
 export async function create(datos) {
   await delay();
-  const { nombre, codigo, ubicacion, encargado, fechaInicio, estado } = datos;
-  if (!nombre?.trim() || !ubicacion?.trim()) {
-    return fail("Nombre y ubicación son obligatorios");
+  const { id, nombre, ubicacion, estado = "activa" } = datos;
+  if (!nombre?.trim()) return fail("El nombre es obligatorio");
+  if (!ubicacion?.trim()) return fail("La ubicación es obligatoria");
+  if (!id?.trim()) return fail("ID de obra inválido");
+  if (store.obras.some((o) => o.id.toLowerCase() === id.trim().toLowerCase())) {
+    return fail("Ya existe una obra con ese ID");
   }
-  if (store.obras.some((o) => o.nombre.toLowerCase() === nombre.trim().toLowerCase())) {
-    return fail("Ya existe una obra con ese nombre");
-  }
-  if (codigo && store.obras.some((o) => String(o.codigo).toLowerCase() === String(codigo).trim().toLowerCase())) {
-    return fail("Ya existe una obra con ese código");
-  }
-  const id = store.nextIds.obra++;
-  const autoCodigo = String(8000 + id).padStart(5, "0");
-  const row = {
-    id,
-    codigo: codigo?.trim() || autoCodigo,
+  const nueva = {
+    id: id.trim(),
     nombre: nombre.trim(),
     ubicacion: ubicacion.trim(),
-    encargado: encargado || "Por definir",
-    fechaInicio: fechaInicio || new Date().toISOString().slice(0, 10),
-    estado: estado || "activa",
+    estado: normalEstado(estado) || "activa",
+    personal: 0,
     presente: 0,
-    pendientes: [],
   };
-  store.obras.push(row);
-  return ok(enrich(row));
+  store.obras.unshift(nueva);
+  return ok(nueva);
 }
 
 // TODO: reemplazar con PUT /api/obras/:id
 export async function update(id, datos) {
   await delay();
-  const idx = store.obras.findIndex((o) => o.id === Number(id));
+  const idx = store.obras.findIndex((o) => o.id === id);
   if (idx === -1) return fail("Obra no encontrada");
-  const nombre = datos.nombre?.trim() ?? store.obras[idx].nombre;
-  const codigo = datos.codigo?.trim() ?? store.obras[idx].codigo;
-  if (
-    store.obras.some(
-      (o, i) => i !== idx && o.nombre.toLowerCase() === nombre.toLowerCase()
-    )
-  ) {
-    return fail("Ya existe otra obra con ese nombre");
-  }
-  if (store.obras.some((o, i) => i !== idx && String(o.codigo).toLowerCase() === String(codigo).toLowerCase())) {
-    return fail("Ya existe otra obra con ese código");
+  const nextId = (datos.id ?? store.obras[idx].id).trim();
+  if (!datos.nombre?.trim()) return fail("El nombre es obligatorio");
+  if (!datos.ubicacion?.trim()) return fail("La ubicación es obligatoria");
+  if (store.obras.some((o, i) => i !== idx && o.id.toLowerCase() === nextId.toLowerCase())) {
+    return fail("Ya existe una obra con ese ID");
   }
   store.obras[idx] = {
     ...store.obras[idx],
-    ...datos,
-    id: Number(id),
-    codigo,
-    nombre,
-    ubicacion: datos.ubicacion?.trim() ?? store.obras[idx].ubicacion,
-    encargado: datos.encargado ?? store.obras[idx].encargado,
-    fechaInicio: datos.fechaInicio ?? store.obras[idx].fechaInicio,
-    estado: datos.estado ?? store.obras[idx].estado,
+    id: nextId,
+    nombre: datos.nombre.trim(),
+    ubicacion: datos.ubicacion.trim(),
+    estado: normalEstado(datos.estado) || "activa",
   };
-  return ok(enrich(store.obras[idx]));
+  return ok(store.obras[idx]);
 }
 
-// TODO: reemplazar con DELETE /api/obras/:id (validar que no tenga trabajadores activos)
+// TODO: reemplazar con DELETE /api/obras/:id
 export async function remove(id) {
   await delay();
-  const o = store.obras.find((x) => x.id === Number(id));
-  if (!o) return fail("Obra no encontrada");
-  store.obras = store.obras.filter((x) => x.id !== Number(id));
-  return ok(o);
+  const idx = store.obras.findIndex((o) => o.id === id);
+  if (idx === -1) return fail("Obra no encontrada");
+  const [deleted] = store.obras.splice(idx, 1);
+  return ok(deleted);
 }
 
-/** Opciones de encargado: usuarios mock con rol Encargado */
-// TODO: reemplazar con GET /api/usuarios?rol=Encargado
-export async function getEncargadosOpciones() {
+// TODO: reemplazar con GET /api/obras/next-id
+export function getNextObraId() {
+  const numeric = store.obras
+    .map((o) => Number(String(o.id).replace(/\D/g, "")))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const next = (numeric.length ? Math.max(...numeric) : 8005) + 1;
+  return String(next).padStart(5, "0");
+}
+
+// TODO: reemplazar con GET /api/obras/stats/globales
+export async function getGlobalStats() {
   await delay();
-  return ok(
-    store.usuarios
-      .filter((u) => u.rol === "Encargado")
-      .map((u) => ({ value: u.nombre, label: u.nombre }))
-  );
+  const activos = store.personal.filter((p) => String(p.estado).toLowerCase() === "activo").length;
+  const hoy = new Date().toLocaleDateString("es-CO");
+  const presentesHoy = store.asistencias.filter((a) => a.fecha === hoy && a.estado === "Presente").length;
+  const asistenciaPromedio = activos ? Math.round((presentesHoy / activos) * 100) : 0;
+  const sinJustificar = store.asistencias.filter((a) => a.estado === "Ausente" && !a.justificacion).length;
+  return ok({
+    trabajadoresActivos: activos,
+    asistenciaPromedio,
+    asistenciasSinJustificar: sinJustificar,
+    pendientes: pendientes.length,
+  });
+}
+
+// TODO: reemplazar con GET /api/obras/pendientes?tipo=&obra=
+export async function getPendientes(filtros = {}) {
+  await delay();
+  const { tipo = "Todos", obra = "Todas" } = filtros;
+  let rows = [...pendientes];
+  if (tipo !== "Todos") rows = rows.filter((p) => p.tipo === tipo);
+  if (obra !== "Todas") rows = rows.filter((p) => p.obra === obra);
+  return ok(rows);
 }
 
 // TODO: reemplazar con GET /api/obras/options
