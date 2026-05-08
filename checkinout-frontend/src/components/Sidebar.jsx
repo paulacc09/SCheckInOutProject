@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutGrid, Users, Building2, MonitorSmartphone, ClipboardList,
   FileBarChart2, FileText, ShieldCheck, AlertTriangle,
-  ArrowLeftRight, UserCircle2, LogOut, UserCog2
+  ArrowLeftRight, UserCircle2, LogOut, UserCog2, Settings
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -15,6 +15,7 @@ const NAV = {
     { to: "/admin/asistencias",    label: "Asistencias",       icon: ClipboardList },
     { to: "/admin/reportes",       label: "Reportes",          icon: FileBarChart2 },
     { to: "/admin/documentos",     label: "Documentos",        icon: FileText },
+    { to: "/admin/configuracion",  label: "Configuración",     icon: Settings },
   ],
   inspector_sst: [
     { to: "/sst/asistencia",  label: "Asistencia",      icon: ClipboardList },
