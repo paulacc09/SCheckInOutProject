@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 
 import Login from "./pages/Login";
 import RegistroEmpresa from "./pages/RegistroEmpresa";
+import AuthGoogle from "./pages/AuthGoogle";
 
 // Admin
 import Obras from "./pages/admin/Obras";
@@ -37,6 +38,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<RegistroEmpresa />} />
+          <Route path="/auth/google" element={<AuthGoogle />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
 
           {/* ADMIN */}

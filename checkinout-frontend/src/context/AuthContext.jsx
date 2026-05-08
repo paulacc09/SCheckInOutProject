@@ -47,8 +47,15 @@ export function AuthProvider({ children }) {
     setUsuario(null);
   };
 
+  const loginConToken = (token, usuario) => {
+    localStorage.setItem("checkinout_token", token);
+    localStorage.setItem("checkinout_user", JSON.stringify(usuario));
+    setToken(token);
+    setUsuario(usuario);
+  };
+
   return (
-    <AuthContext.Provider value={{ usuario, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ usuario, token, login, logout, loginConToken, loading }}>
       {children}
     </AuthContext.Provider>
   );

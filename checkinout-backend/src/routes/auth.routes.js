@@ -12,7 +12,7 @@ router.get(
   '/google/callback',
   passport.authenticate('google', {
     session: false,
-    failureRedirect: process.env.FRONTEND_URL + '/login?error=google'
+    failureRedirect: process.env.FRONTEND_URL + '/registro?error=google_not_found'
   }),
   (req, res) => {
     const token = jwt.sign(
