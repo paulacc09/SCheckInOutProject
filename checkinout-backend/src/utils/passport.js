@@ -22,21 +22,7 @@ passport.use(
           return done(null, rows[0]);
         }
 
-        const nombre = profile?.name?.givenName || 'Usuario';
-        const apellido = profile?.name?.familyName || 'Google';
-
-        const [result] = await pool.execute(
-          `INSERT INTO usuarios (nombre, apellido, email, password_hash, rol, empresa_id)
-           VALUES (?, ?, ?, 'GOOGLE_AUTH', 'administrador', NULL)`,
-          [nombre, apellido, email]
-        );
-
-        const [nuevoUsuarioRows] = await pool.execute(
-          `SELECT * FROM usuarios WHERE id = ? LIMIT 1`,
-          [result.insertId]
-        );
-
-        return done(null, nuevoUsuarioRows[0]);
+        return done(null, false, { message: 'email_not_found' });
       } catch (err) {
         return done(err);
       }
