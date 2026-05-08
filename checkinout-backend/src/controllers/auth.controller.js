@@ -1,8 +1,10 @@
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { success, error } = require('../utils/response');
 const { registrarAuditoria } = require('../utils/audit');
+const transporter = require('../utils/mailer');
 
 const login = async (req, res) => {
   const { email, password } = req.body;
@@ -204,4 +206,96 @@ const googleCallback = async (req, res) => {
   }
 };
 
-module.exports = { login, registro, perfil, googleCallback };
+const solicitarRecuperacion = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, email FROM usuarios WHERE email = ? LIMIT 1`,
+      [email]
+    );
+
+    if (rows.length === 0) {
+      return res.json({ success: false, message: "Correo no registrado" });
+    }
+
+    const usuario = rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+
+    await pool.execute(
+      `UPDATE usuarios
+       SET reset_token = ?, reset_token_expira = DATE_ADD(NOW(), INTERVAL 1 HOUR)
+       WHERE id = ?`,
+      [token, usuario.id]
+    );
+
+    await transporter.sendMail({
+      from: process.env.MAIL_USER,
+      to: usuario.email,
+      subject: "Recuperación de contraseña - CheckInOut",
+      html: `
+  <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; 
+              border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+    <div style="background: linear-gradient(135deg, #0f1f4d, #2563eb); 
+                padding: 32px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px;">CheckInOut</h1>
+      <p style="color: #bfdbfe; margin: 8px 0 0;">Control de Asistencia y Personal</p>
+    </div>
+    <div style="padding: 32px;">
+      <h2 style="color: #1e293b; margin-top: 0;">Recuperación de contraseña</h2>
+      <p style="color: #64748b;">Haz clic en el botón para crear una nueva contraseña. 
+         El enlace expira en <strong>1 hora</strong>.</p>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${process.env.FRONTEND_URL}/nueva-clave?token=${token}"
+           style="background: #2563eb; color: white; padding: 14px 32px; 
+                  border-radius: 6px; text-decoration: none; font-weight: bold;
+                  font-size: 16px;">
+          Restablecer contraseña
+        </a>
+      </div>
+      <p style="color: #94a3b8; font-size: 13px;">
+        Si no solicitaste esto, ignora este correo.<br>
+        Este enlace expira en 1 hora.
+      </p>
+    </div>
+  </div>
+`
+    });
+
+    return res.json({ success: true, message: "Correo enviado" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Error interno del servidor" });
+  }
+};
+
+const resetearPassword = async (req, res) => {
+  const { token, nuevaPassword } = req.body;
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id FROM usuarios WHERE reset_token = ? AND reset_token_expira > NOW() LIMIT 1`,
+      [token]
+    );
+
+    if (rows.length === 0) {
+      return res.json({ success: false, message: "Token inválido o expirado" });
+    }
+
+    const hash = await bcrypt.hash(nuevaPassword, 10);
+
+    await pool.execute(
+      `UPDATE usuarios
+       SET password_hash = ?, reset_token = NULL, reset_token_expira = NULL
+       WHERE id = ?`,
+      [hash, rows[0].id]
+    );
+
+    return res.json({ success: true, message: "Contraseña actualizada" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Error interno del servidor" });
+  }
+};
+
+module.exports = { login, registro, perfil, googleCallback, solicitarRecuperacion, resetearPassword };

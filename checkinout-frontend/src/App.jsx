@@ -6,6 +6,8 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import RegistroEmpresa from "./pages/RegistroEmpresa";
 import AuthGoogle from "./pages/AuthGoogle";
+import RecuperarPassword from "./pages/RecuperarPassword";
+import NuevaClave from "./pages/NuevaClave";
 
 // Admin
 import Obras from "./pages/admin/Obras";
@@ -39,6 +41,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<RegistroEmpresa />} />
           <Route path="/auth/google" element={<AuthGoogle />} />
+          <Route path="/recuperar-password" element={<RecuperarPassword />} />
+          <Route path="/nueva-clave" element={<NuevaClave />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
 
           {/* ADMIN */}

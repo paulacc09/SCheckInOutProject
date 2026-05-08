@@ -144,7 +144,7 @@ export default function Login() {
             </button>
 
             <div className="text-center text-sm">
-              <Link to="/recuperar" className="text-primary hover:underline">
+              <Link to="/recuperar-password" className="text-primary hover:underline">
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>

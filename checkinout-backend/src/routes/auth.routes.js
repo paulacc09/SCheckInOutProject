@@ -1,11 +1,13 @@
 const router = require('express').Router();
-const { login, registro, perfil } = require('../controllers/auth.controller');
+const { login, registro, perfil, solicitarRecuperacion, resetearPassword } = require('../controllers/auth.controller');
 const { verificarToken } = require('../utils/middlewares/auth.middleware'); 
 const passport = require('../utils/passport');
 const jwt = require('jsonwebtoken');
 
 router.post('/login', login);
 router.post('/registro', registro);
+router.post('/recuperar-password', solicitarRecuperacion);
+router.post('/reset-password', resetearPassword);
 router.get('/perfil', verificarToken, perfil);
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
 router.get(
