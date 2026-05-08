@@ -37,7 +37,7 @@ function enrich(d) {
   return { ...d, estado };
 }
 
-// TODO: reemplazar con GET /api/documentos?tab=&tipo=&search=
+// TODO: reemplazar con GET /api/documentos?tab=X&estado=Y&tipo=Z&search=W
 export async function getAll(filtros = {}) {
   await delay();
   const { tab = "Todos", tipo = "", search = "", estadoFiltro = "" } = filtros;
@@ -58,8 +58,21 @@ export async function getAll(filtros = {}) {
 
 export async function getAlertaPorVencer() {
   await delay();
-  const n = store.documentos.filter((d) => calcularEstado(d.vencimiento) === "Por vencer").length;
-  return ok({ mostrar: n > 0, cantidad: n });
+  const porVencer = store.documentos.filter((d) => calcularEstado(d.vencimiento) === "Por vencer");
+  if (!porVencer.length) {
+    return ok({ mostrar: false, cantidad: 0, fechaLimite: null });
+  }
+  const fechas = porVencer
+    .map((d) => parseIso(d.vencimiento))
+    .filter(Boolean);
+  const minTs = Math.min(...fechas.map((d) => d.getTime()));
+  const min = new Date(minTs);
+  const fechaLimite = min.toLocaleDateString("es-CO", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  return ok({ mostrar: true, cantidad: porVencer.length, fechaLimite });
 }
 
 // TODO: reemplazar con GET /api/documentos/:id
@@ -100,7 +113,7 @@ export async function update(id, datos) {
   if (idx === -1) return fail("Documento no encontrado");
   let trabajador = store.documentos[idx].trabajador;
   let trabajadorId = store.documentos[idx].trabajadorId;
-  if (datos.trabajadorId) {
+  if (datos.trabajadorId != null && datos.trabajadorId !== "") {
     const p = store.personal.find((x) => x.id === Number(datos.trabajadorId));
     if (!p) return fail("Trabajador no encontrado");
     trabajadorId = p.id;
