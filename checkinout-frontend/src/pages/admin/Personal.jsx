@@ -4,6 +4,7 @@ import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import EmptyState from "../../components/EmptyState";
+import CamaraFacial from "../../components/CamaraFacial";
 
 export default function Personal() {
   const nombreApellidoRegex = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]{2,50}$/;
@@ -27,8 +28,10 @@ export default function Personal() {
   const [form, setForm] = useState({
     nombre: "", apellido: "", cedula: "", telefono: "",
     email: "", subcargo_id: "", estado: "activo",
-    tipo_documento: "CC", fecha_nacimiento: "", sexo: "", obra_id: "",
+    tipo_documento: "CC", fecha_nacimiento: "", sexo: "",     obra_id: "",
   });
+  const [mostrarBiometrico, setMostrarBiometrico] = useState(false);
+  const [trabajadorNuevoId, setTrabajadorNuevoId] = useState(null);
 
   const validarFormulario = () => {
     const nuevosErrores = {};
@@ -151,10 +154,18 @@ export default function Personal() {
           estado: (form.estado || "activo").toLowerCase(),
         };
         await api.put(`/trabajadores/${editing.id}`, updatePayload);
+        setOpenModal(false);
+        await cargar();
+      } else {
+        const { data: resp } = await api.post("/trabajadores", form);
+        const nuevoId = resp.data?.id || resp.id;
+        setTrabajadorNuevoId(nuevoId);
+        setOpenModal(false);
+        setMostrarBiometrico(true);
+        await cargar();
+        setSaving(false);
+        return;
       }
-      else await api.post("/trabajadores", form);
-      setOpenModal(false);
-      await cargar();
     } catch (err) {
       alert(err.response?.data?.mensaje || "Error al guardar trabajador");
     } finally {
@@ -338,6 +349,42 @@ export default function Personal() {
           )}
         </form>
       </Modal>
+
+      {mostrarBiometrico && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4">
+            <h2 className="text-lg font-semibold text-slate-800">Registrar rostro del trabajador</h2>
+            <p className="text-sm text-slate-500">Capture el rostro del trabajador para habilitar el control de asistencia biométrico.</p>
+            <CamaraFacial
+              modo="registrar"
+              onDescriptor={async (descriptor) => {
+                try {
+                  await api.patch(`/trabajadores/${trabajadorNuevoId}/descriptor`, { descriptor });
+                  alert("Rostro registrado exitosamente ✅");
+                } catch {
+                  alert("Error al guardar el descriptor facial");
+                } finally {
+                  setMostrarBiometrico(false);
+                  setTrabajadorNuevoId(null);
+                }
+              }}
+              onCerrar={() => {
+                setMostrarBiometrico(false);
+                setTrabajadorNuevoId(null);
+              }}
+            />
+            <button
+              onClick={() => {
+                setMostrarBiometrico(false);
+                setTrabajadorNuevoId(null);
+              }}
+              className="btn btn-outline w-full"
+            >
+              Omitir por ahora
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
