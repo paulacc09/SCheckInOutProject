@@ -232,4 +232,70 @@ const buscarPorCedula = async (req, res) => {
   }
 };
 
-module.exports = { listar, obtener, crear, actualizar, cambiarEstado, buscarPorCedula };
+const guardarDescriptor = async (req, res) => {
+  const { descriptor } = req.body;
+  if (!descriptor || !Array.isArray(descriptor)) {
+    return error(res, 'Descriptor facial inválido', 400);
+  }
+  try {
+    const [rows] = await db.query(
+      `SELECT id FROM trabajadores WHERE id = ? AND empresa_id = ?`,
+      [req.params.id, req.usuario.empresa_id]
+    );
+    if (!rows.length) return error(res, 'Trabajador no encontrado', 404);
+    await db.query(
+      `UPDATE trabajadores SET descriptor_facial = ? WHERE id = ?`,
+      [JSON.stringify(descriptor), req.params.id]
+    );
+    return success(res, { mensaje: 'Descriptor facial guardado' });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+const identificarPorDescriptor = async (req, res) => {
+  const { descriptor } = req.body;
+  if (!descriptor || !Array.isArray(descriptor)) {
+    return error(res, 'Descriptor facial inválido', 400);
+  }
+  try {
+    const [rows] = await db.query(
+      `SELECT id, nombre, apellido, cedula, descriptor_facial FROM trabajadores 
+       WHERE empresa_id = ? AND estado = 'activo' AND descriptor_facial IS NOT NULL`,
+      [req.usuario.empresa_id]
+    );
+    if (!rows.length) return error(res, 'No hay trabajadores con rostro registrado', 404);
+
+    let mejorCoincidencia = null;
+    let menorDistancia = Infinity;
+
+    for (const trabajador of rows) {
+      const descriptorBD = JSON.parse(trabajador.descriptor_facial);
+      const distancia = Math.sqrt(
+        descriptor.reduce((sum, val, i) => sum + Math.pow(val - descriptorBD[i], 2), 0)
+      );
+      if (distancia < menorDistancia) {
+        menorDistancia = distancia;
+        mejorCoincidencia = trabajador;
+      }
+    }
+
+    if (menorDistancia > 0.6) {
+      return error(res, 'Rostro no reconocido', 404);
+    }
+
+    return success(res, {
+      trabajador: {
+        id: mejorCoincidencia.id,
+        nombre: mejorCoincidencia.nombre,
+        apellido: mejorCoincidencia.apellido,
+        cedula: mejorCoincidencia.cedula
+      },
+      distancia: menorDistancia
+    });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+module.exports = { listar, obtener, crear, actualizar, cambiarEstado, buscarPorCedula, guardarDescriptor, identificarPorDescriptor };
