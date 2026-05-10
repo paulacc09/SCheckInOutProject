@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   Building2,
   Mail,
@@ -28,6 +28,7 @@ const initialForm = {
 
 export default function RegistroEmpresa() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState(initialForm);
   const [errores, setErrores] = useState({});
   const [errorServidor, setErrorServidor] = useState("");
@@ -155,6 +156,11 @@ export default function RegistroEmpresa() {
 
           <h2 className="text-3xl font-bold text-slate-900">Registrar empresa</h2>
           <p className="mt-2 text-slate-500">Crea la cuenta de tu organización</p>
+          {searchParams.get("error") === "google_not_found" && (
+            <div className="mt-4 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-800">
+              Tu cuenta de Google no está registrada en CheckInOut. Registra tu empresa aquí para comenzar.
+            </div>
+          )}
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
