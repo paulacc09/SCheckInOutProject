@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { success, error } = require('../utils/response');
 const { registrarAuditoria } = require('../utils/audit');
 const transporter = require('../utils/mailer');
+const { crearNotificacion } = require('../utils/notificaciones');
 
 const login = async (req, res) => {
   const { email, password } = req.body;
@@ -290,6 +291,36 @@ const resetearPassword = async (req, res) => {
        WHERE id = ?`,
       [hash, rows[0].id]
     );
+
+    try {
+      const [usuarioRows] = await pool.execute(
+        `SELECT id, nombre, apellido, empresa_id FROM usuarios WHERE id = ?`,
+        [rows[0].id]
+      );
+
+      if (usuarioRows.length) {
+        const usuario = usuarioRows[0];
+        const [admins] = await pool.execute(
+          `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
+          [usuario.empresa_id]
+        );
+
+        for (const admin of admins) {
+          await crearNotificacion({
+            empresa_id: usuario.empresa_id,
+            usuario_destino_id: admin.id,
+            usuario_origen_id: usuario.id,
+            tipo: 'cambio_contrasena',
+            titulo: 'Cambio de contraseña',
+            mensaje: `El usuario ${usuario.nombre} ${usuario.apellido} realizó un cambio de contraseña`,
+            referencia_id: rows[0].id,
+            referencia_tabla: 'usuarios'
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error(notifErr);
+    }
 
     return res.json({ success: true, message: "Contraseña actualizada" });
   } catch (err) {

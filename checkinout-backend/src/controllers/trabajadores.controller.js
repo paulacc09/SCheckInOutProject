@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+const { crearNotificacion } = require('../utils/notificaciones');
 
 const sanitizeOptional = (value) => (value ? value : null);
 const cedulaRegex = /^\d{5,15}$/;
@@ -171,6 +172,29 @@ const actualizar = async (req, res) => {
     );
     if (!result.affectedRows) return error(res, 'Trabajador no encontrado', 404);
     await asignarObraSiCorresponde({ trabajadorId: req.params.id, obraId: obra_id });
+
+    try {
+      const [admins] = await db.query(
+        `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
+        [req.usuario.empresa_id]
+      );
+
+      for (const admin of admins) {
+        await crearNotificacion({
+          empresa_id: req.usuario.empresa_id,
+          usuario_destino_id: admin.id,
+          usuario_origen_id: req.usuario.id,
+          tipo: 'trabajador_editado',
+          titulo: 'Trabajador editado',
+          mensaje: `El inspector ${req.usuario.nombre} ${req.usuario.apellido} editó al trabajador ${nombre} ${apellido}`,
+          referencia_id: parseInt(req.params.id),
+          referencia_tabla: 'trabajadores'
+        });
+      }
+    } catch (notifErr) {
+      console.error(notifErr);
+    }
+
     return success(res, { mensaje: 'Actualizado correctamente' });
   } catch (err) {
     return error(res, err.message, 500);

@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+const { crearNotificacion } = require('../utils/notificaciones');
 
 const abrirJornada = async (req, res) => {
   const { obra_id } = req.body;
@@ -15,6 +16,37 @@ const abrirJornada = async (req, res) => {
       `INSERT INTO jornadas_asistencia (obra_id, inspector_id) VALUES (?, ?)`,
       [obra_id, req.usuario.id]
     );
+
+    try {
+      const [obraRows] = await db.query(
+        `SELECT nombre, empresa_id FROM obras WHERE id = ?`,
+        [obra_id]
+      );
+
+      if (obraRows.length) {
+        const { nombre, empresa_id } = obraRows[0];
+        const [admins] = await db.query(
+          `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
+          [empresa_id]
+        );
+
+        for (const admin of admins) {
+          await crearNotificacion({
+            empresa_id,
+            usuario_destino_id: admin.id,
+            usuario_origen_id: req.usuario.id,
+            tipo: 'jornada_abierta',
+            titulo: 'Jornada abierta',
+            mensaje: `El inspector ${req.usuario.nombre} ${req.usuario.apellido} abrió la jornada en la obra "${nombre}"`,
+            referencia_id: result.insertId,
+            referencia_tabla: 'jornadas_asistencia'
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error(notifErr);
+    }
+
     return success(res, { jornada_id: result.insertId }, 201);
   } catch (err) {
     return error(res, err.message, 500);
@@ -29,6 +61,38 @@ const cerrarJornada = async (req, res) => {
       [req.params.id]
     );
     if (!result.affectedRows) return error(res, 'Jornada no encontrada o ya cerrada', 404);
+
+    try {
+      const [jornadaRows] = await db.query(
+        `SELECT j.obra_id, j.inspector_id, o.nombre AS obra_nombre, o.empresa_id
+         FROM jornadas_asistencia j JOIN obras o ON o.id = j.obra_id WHERE j.id = ?`,
+        [req.params.id]
+      );
+
+      if (jornadaRows.length) {
+        const { obra_nombre, empresa_id } = jornadaRows[0];
+        const [admins] = await db.query(
+          `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
+          [empresa_id]
+        );
+
+        for (const admin of admins) {
+          await crearNotificacion({
+            empresa_id,
+            usuario_destino_id: admin.id,
+            usuario_origen_id: req.usuario.id,
+            tipo: 'jornada_cerrada',
+            titulo: 'Jornada cerrada',
+            mensaje: `El inspector cerró la jornada en la obra "${obra_nombre}"`,
+            referencia_id: parseInt(req.params.id),
+            referencia_tabla: 'jornadas_asistencia'
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error(notifErr);
+    }
+
     return success(res, { mensaje: 'Jornada cerrada' });
   } catch (err) {
     return error(res, err.message, 500);
