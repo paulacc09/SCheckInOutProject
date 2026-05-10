@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { crearNotificacion } = require('../utils/notificaciones');
+const { enviarCorreoJornada } = require('../utils/emails');
 
 const abrirJornada = async (req, res) => {
   const { obra_id } = req.body;
@@ -41,6 +42,25 @@ const abrirJornada = async (req, res) => {
             referencia_id: result.insertId,
             referencia_tabla: 'jornadas_asistencia'
           });
+        }
+
+        try {
+          const [adminsEmail] = await db.query(
+            `SELECT id, nombre, email FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
+            [empresa_id]
+          );
+          const nombreInspector = `${req.usuario.nombre} ${req.usuario.apellido}`;
+          for (const admin of adminsEmail) {
+            await enviarCorreoJornada({
+              emailAdmin: admin.email,
+              nombreAdmin: admin.nombre,
+              nombreInspector,
+              nombreObra: nombre,
+              tipo: 'abierta',
+            });
+          }
+        } catch (emailErr) {
+          console.error(emailErr);
         }
       }
     } catch (notifErr) {
@@ -87,6 +107,25 @@ const cerrarJornada = async (req, res) => {
             referencia_id: parseInt(req.params.id),
             referencia_tabla: 'jornadas_asistencia'
           });
+        }
+
+        try {
+          const [adminsEmail] = await db.query(
+            `SELECT id, nombre, email FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
+            [empresa_id]
+          );
+          const nombreInspector = `${req.usuario.nombre} ${req.usuario.apellido}`;
+          for (const admin of adminsEmail) {
+            await enviarCorreoJornada({
+              emailAdmin: admin.email,
+              nombreAdmin: admin.nombre,
+              nombreInspector,
+              nombreObra: obra_nombre,
+              tipo: 'cerrada',
+            });
+          }
+        } catch (emailErr) {
+          console.error(emailErr);
         }
       }
     } catch (notifErr) {

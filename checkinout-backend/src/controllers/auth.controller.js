@@ -6,6 +6,7 @@ const { success, error } = require('../utils/response');
 const { registrarAuditoria } = require('../utils/audit');
 const transporter = require('../utils/mailer');
 const { crearNotificacion } = require('../utils/notificaciones');
+const { enviarCorreoCambioContrasena } = require('../utils/emails');
 
 const login = async (req, res) => {
   const { email, password } = req.body;
@@ -294,7 +295,7 @@ const resetearPassword = async (req, res) => {
 
     try {
       const [usuarioRows] = await pool.execute(
-        `SELECT id, nombre, apellido, empresa_id FROM usuarios WHERE id = ?`,
+        `SELECT id, nombre, apellido, email, empresa_id FROM usuarios WHERE id = ?`,
         [rows[0].id]
       );
 
@@ -316,6 +317,15 @@ const resetearPassword = async (req, res) => {
             referencia_id: rows[0].id,
             referencia_tabla: 'usuarios'
           });
+        }
+
+        try {
+          await enviarCorreoCambioContrasena({
+            email: usuario.email,
+            nombre: usuario.nombre,
+          });
+        } catch (emailErr) {
+          console.error(emailErr);
         }
       }
     } catch (notifErr) {

@@ -1,35 +1,36 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+const { crearNotificacion } = require('../utils/notificaciones');
 
-const asistenciaDiaria = async (req, res) => {
-  const { fecha_inicio, fecha_fin, obra_id } = req.query;
-  if (!fecha_inicio || !fecha_fin) return error(res, 'fecha_inicio y fecha_fin son requeridos');
-  try {
-    let query = `
-      SELECT * FROM vista_asistencia_diaria
-      WHERE fecha BETWEEN ? AND ?
-    `;
-    const params = [fecha_inicio, fecha_fin];
-    if (obra_id) {
-      query = `
-        SELECT v.* FROM vista_asistencia_diaria v
-        JOIN registros_asistencia r ON r.trabajador_id = v.trabajador_id AND DATE(r.timestamp) = v.fecha
-        WHERE v.fecha BETWEEN ? AND ? AND r.obra_id = ?
-        GROUP BY v.trabajador_id, v.fecha
-      `;
-      params.push(obra_id);
-    }
-    const [rows] = await db.query(query, params);
-    return success(res, rows);
-  } catch (err) {
-    return error(res, err.message, 500);
+const obtenerRowsAsistenciaDiaria = async ({ fecha_inicio, fecha_fin, obra_id, empresa_id }) => {
+  let query = `
+    SELECT
+      t.id AS trabajador_id,
+      CONCAT(t.nombre, ' ', t.apellido) AS trabajador,
+      t.cedula,
+      r.fecha,
+      MIN(CASE WHEN r.tipo = 'ingreso' THEN r.timestamp END) AS hora_entrada,
+      MAX(CASE WHEN r.tipo = 'salida' THEN r.timestamp END) AS hora_salida,
+      o.nombre AS obra
+    FROM registros_asistencia r
+    JOIN trabajadores t ON t.id = r.trabajador_id
+    JOIN obras o ON o.id = r.obra_id
+    WHERE t.empresa_id = ?
+      AND r.fecha BETWEEN ? AND ?
+      AND r.estado = 'valido'
+  `;
+  const params = [empresa_id, fecha_inicio, fecha_fin];
+  if (obra_id) {
+    query += ' AND r.obra_id = ?';
+    params.push(obra_id);
   }
+  query += ' GROUP BY t.id, r.fecha, o.id ORDER BY r.fecha, trabajador';
+  const [rows] = await db.query(query, params);
+  return rows;
 };
 
-const ausencias = async (req, res) => {
-  const { fecha, obra_id } = req.query;
-  try {
-    let query = `
+const obtenerRowsAusencias = async ({ fecha, obra_id, empresa_id }) => {
+  let query = `
       SELECT t.id, CONCAT(t.nombre,' ',t.apellido) AS trabajador, t.cedula
       FROM trabajadores t
       WHERE t.empresa_id = ? AND t.estado = 'activo'
@@ -39,20 +40,14 @@ const ausencias = async (req, res) => {
         ${obra_id ? 'AND obra_id = ?' : ''}
       )
     `;
-    const params = [req.usuario.empresa_id, fecha || new Date().toISOString().split('T')[0]];
-    if (obra_id) params.push(obra_id);
-    const [rows] = await db.query(query, params);
-    return success(res, rows);
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
+  const params = [empresa_id, fecha];
+  if (obra_id) params.push(obra_id);
+  const [rows] = await db.query(query, params);
+  return rows;
 };
 
-const horasTrabajadas = async (req, res) => {
-  const { fecha_inicio, fecha_fin, obra_id } = req.query;
-  if (!fecha_inicio || !fecha_fin) return error(res, 'fecha_inicio y fecha_fin son requeridos');
-  try {
-    let query = `
+const obtenerRowsHorasTrabajadas = async ({ fecha_inicio, fecha_fin, obra_id, empresa_id }) => {
+  let query = `
       SELECT 
         t.id AS trabajador_id,
         CONCAT(t.nombre,' ',t.apellido) AS trabajador,
@@ -68,13 +63,182 @@ const horasTrabajadas = async (req, res) => {
       ${obra_id ? 'AND r.obra_id = ?' : ''}
       GROUP BY t.id
     `;
-    const params = [req.usuario.empresa_id, fecha_inicio, fecha_fin];
-    if (obra_id) params.push(obra_id);
-    const [rows] = await db.query(query, params);
+  const params = [empresa_id, fecha_inicio, fecha_fin];
+  if (obra_id) params.push(obra_id);
+  const [rows] = await db.query(query, params);
+  return rows;
+};
+
+const asistenciaDiaria = async (req, res) => {
+  const { fecha_inicio, fecha_fin, obra_id } = req.query;
+  if (!fecha_inicio || !fecha_fin) return error(res, 'fecha_inicio y fecha_fin son requeridos');
+  try {
+    const rows = await obtenerRowsAsistenciaDiaria({
+      fecha_inicio, fecha_fin, obra_id,
+      empresa_id: req.usuario.empresa_id
+    });
     return success(res, rows);
   } catch (err) {
     return error(res, err.message, 500);
   }
 };
 
-module.exports = { asistenciaDiaria, ausencias, horasTrabajadas };
+const ausencias = async (req, res) => {
+  const { fecha, obra_id } = req.query;
+  try {
+    const fechaUsada = fecha || new Date().toISOString().split('T')[0];
+    const rows = await obtenerRowsAusencias({
+      fecha: fechaUsada,
+      obra_id,
+      empresa_id: req.usuario.empresa_id,
+    });
+    return success(res, rows);
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+const horasTrabajadas = async (req, res) => {
+  const { fecha_inicio, fecha_fin, obra_id } = req.query;
+  if (!fecha_inicio || !fecha_fin) return error(res, 'fecha_inicio y fecha_fin son requeridos');
+  try {
+    const rows = await obtenerRowsHorasTrabajadas({
+      fecha_inicio,
+      fecha_fin,
+      obra_id,
+      empresa_id: req.usuario.empresa_id,
+    });
+    return success(res, rows);
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+const enumerarFechas = (fecha_inicio, fecha_fin) => {
+  const fechas = [];
+  const start = new Date(`${fecha_inicio}T12:00:00`);
+  const end = new Date(`${fecha_fin}T12:00:00`);
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    fechas.push(new Date(d).toISOString().split('T')[0]);
+  }
+  return fechas;
+};
+
+const rowsToCsv = (rows) => {
+  if (!rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  const lineas = [headers.join(',')];
+  for (const row of rows) {
+    const valores = headers.map((h) => {
+      const v = row[h];
+      return v === null || v === undefined ? '' : String(v);
+    });
+    lineas.push(valores.join(','));
+  }
+  return lineas.join('\n');
+};
+
+const exportarReporte = async (req, res) => {
+  const { tipo, fecha_inicio, fecha_fin, formato, obra_id } = req.body;
+
+  if (!tipo || !fecha_inicio || !fecha_fin || !formato) {
+    return error(res, 'tipo, fecha_inicio, fecha_fin y formato son requeridos', 400);
+  }
+
+  const formatoUpper = String(formato).toUpperCase();
+  if (formatoUpper === 'PDF') {
+    return error(res, 'PDF en desarrollo', 501);
+  }
+  if (formatoUpper !== 'CSV') {
+    return error(res, 'formato debe ser CSV o PDF', 400);
+  }
+
+  try {
+    let rows = [];
+
+    if (tipo === 'asistencia_diaria' || tipo === 'asistencia') {
+      rows = await obtenerRowsAsistenciaDiaria({
+        fecha_inicio,
+        fecha_fin,
+        obra_id,
+        empresa_id: req.usuario.empresa_id,
+      });
+    } else if (tipo === 'ausencias') {
+      const fechas = enumerarFechas(fecha_inicio, fecha_fin);
+      for (const fecha of fechas) {
+        const diaRows = await obtenerRowsAusencias({
+          fecha,
+          obra_id,
+          empresa_id: req.usuario.empresa_id,
+        });
+        for (const r of diaRows) {
+          rows.push({ fecha, ...r });
+        }
+      }
+    } else if (tipo === 'horas_trabajadas' || tipo === 'horas') {
+      rows = await obtenerRowsHorasTrabajadas({
+        fecha_inicio,
+        fecha_fin,
+        obra_id,
+        empresa_id: req.usuario.empresa_id,
+      });
+    } else {
+      return error(res, 'tipo de reporte no válido', 400);
+    }
+
+    const [insertResult] = await db.query(
+      `INSERT INTO reportes (empresa_id, generado_por, tipo, fecha_inicio, fecha_fin, formato)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        req.usuario.empresa_id,
+        req.usuario.id,
+        tipo,
+        fecha_inicio,
+        fecha_fin,
+        formatoUpper,
+      ]
+    );
+
+    try {
+      const [admins] = await db.query(
+        `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
+        [req.usuario.empresa_id]
+      );
+      for (const admin of admins) {
+        try {
+          await crearNotificacion({
+            empresa_id: req.usuario.empresa_id,
+            usuario_destino_id: admin.id,
+            usuario_origen_id: req.usuario.id,
+            tipo: 'reporte_descargado',
+            titulo: 'Reporte descargado',
+            mensaje: `${req.usuario.nombre} ${req.usuario.apellido} descargó un reporte de ${tipo} (${formato})`,
+            referencia_tabla: 'reportes',
+            referencia_id: insertResult.insertId,
+          });
+        } catch (notifErr) {
+          console.error(notifErr);
+        }
+      }
+    } catch (notifBlockErr) {
+      console.error(notifBlockErr);
+    }
+
+    const csvString = rowsToCsv(rows);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="reporte_${tipo}_${fecha_inicio}_${fecha_fin}.csv"`
+    );
+    return res.send(csvString);
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+module.exports = {
+  asistenciaDiaria,
+  ausencias,
+  horasTrabajadas,
+  exportarReporte,
+};

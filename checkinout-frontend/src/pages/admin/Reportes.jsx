@@ -16,6 +16,7 @@ export default function Reportes() {
   const [fechaFin, setFechaFin] = useState(() => new Date().toISOString().slice(0, 10));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [error, setError] = useState("");
 
   const generar = async (e) => {
@@ -32,6 +33,29 @@ export default function Reportes() {
       setError(err.response?.data?.mensaje || "No se pudo generar el reporte");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const exportar = async () => {
+    setExportando(true);
+    try {
+      const response = await api.post(
+        '/reportes/exportar',
+        { tipo, fecha_inicio: fechaInicio, fecha_fin: fechaFin, formato: 'CSV' },
+        { responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `reporte_${tipo}_${fechaInicio}_${fechaFin}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('No se pudo exportar el reporte');
+    } finally {
+      setExportando(false);
     }
   };
 
@@ -74,7 +98,16 @@ export default function Reportes() {
           <div className="card">
             <div className="card-header flex items-center justify-between">
               <h3 className="font-semibold">Resultados ({data.length})</h3>
-              <button className="btn btn-outline"><Download className="w-4 h-4" /> Exportar</button>
+              <button
+                className="btn btn-outline"
+                onClick={exportar}
+                disabled={exportando}
+              >
+                {exportando
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Download className="w-4 h-4" />}
+                {exportando ? 'Exportando...' : 'Exportar'}
+              </button>
             </div>
             <div className="table-wrap rounded-none border-0">
               <table className="table">

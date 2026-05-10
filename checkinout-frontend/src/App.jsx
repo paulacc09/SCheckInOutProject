@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { NotificacionesProvider } from "./context/NotificacionesContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 
@@ -36,6 +37,7 @@ import EncTraspasos from "./pages/encargado/Traspasos";
 export default function App() {
   return (
     <AuthProvider>
+      <NotificacionesProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -96,6 +98,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
+      </NotificacionesProvider>
     </AuthProvider>
   );
 }
