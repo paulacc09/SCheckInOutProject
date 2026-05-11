@@ -1,10 +1,12 @@
 const router = require('express').Router();
-const { listar, obtener, crear, actualizar, cambiarEstado } = require('../controllers/obras.controller');
+const { listar, obtener, crear, actualizar, cambiarEstado, stats, pendientes } = require('../controllers/obras.controller');
 const { verificarToken } = require('../utils/middlewares/auth.middleware');
 
 router.use(verificarToken);
 
 router.get('/', listar);
+router.get('/stats', stats);
+router.get('/pendientes', pendientes);
 router.get('/:id', obtener);
 router.post('/', crear);
 router.put('/:id', actualizar);

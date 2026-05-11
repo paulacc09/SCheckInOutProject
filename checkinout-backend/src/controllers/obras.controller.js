@@ -167,4 +167,36 @@ const cambiarEstado = async (req, res) => {
   }
 };
 
-module.exports = { listar, obtener, crear, actualizar, cambiarEstado };
+const stats = async (req, res) => {
+  try {
+    const [[{ trabajadoresActivos }]] = await db.query(
+      "SELECT COUNT(*) AS trabajadoresActivos FROM trabajadores WHERE empresa_id = ? AND estado = 'activo'",
+      [req.usuario.empresa_id]
+    );
+    const [[{ asistenciaHoy }]] = await db.query(
+      "SELECT COUNT(*) AS asistenciaHoy FROM registros_asistencia WHERE obra_id IN (SELECT id FROM obras WHERE empresa_id = ?) AND DATE(timestamp) = CURDATE()",
+      [req.usuario.empresa_id]
+    );
+    const [[{ pendientes }]] = await db.query(
+      "SELECT COUNT(*) AS pendientes FROM novedades WHERE empresa_id = ? AND estado = 'pendiente'",
+      [req.usuario.empresa_id]
+    );
+    return success(res, { trabajadoresActivos, asistenciaHoy, pendientes });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+const pendientes = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT n.id, n.tipo, n.descripcion, n.fecha, t.nombre AS trabajador_nombre, t.apellido AS trabajador_apellido, o.nombre AS obra_nombre FROM novedades n LEFT JOIN trabajadores t ON t.id = n.trabajador_id LEFT JOIN obras o ON o.id = n.obra_id WHERE n.empresa_id = ? AND n.estado = 'pendiente' ORDER BY n.fecha DESC LIMIT 5",
+      [req.usuario.empresa_id]
+    );
+    return success(res, rows);
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+module.exports = { listar, obtener, crear, actualizar, cambiarEstado, stats, pendientes };
