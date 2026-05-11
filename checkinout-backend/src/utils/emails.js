@@ -1,4 +1,4 @@
-const transporter = require('./mailer');
+const { sendMail } = require('./mailer');
 
 const enviarCorreoNovedadRegistrada = async ({
   emailAdmin,
@@ -13,8 +13,7 @@ const enviarCorreoNovedadRegistrada = async ({
 <p>El inspector ${nombreInspector} registró una novedad de tipo ${tipoNovedad} para el trabajador ${nombreTrabajador}.</p>
 <p>Ingresa a CheckInOut para revisarla y aprobarla o rechazarla.</p>
 `.trim();
-    await transporter.sendMail({
-      from: process.env.MAIL_USER,
+    await sendMail({
       to: emailAdmin,
       subject: 'Nueva novedad registrada — CheckInOut',
       html,
@@ -40,8 +39,7 @@ const enviarCorreoNovedadResuelta = async ({
       html += `<p>Observación: ${observacion}</p>\n`;
     }
     html += `<p>Ingresa a CheckInOut para más detalles.</p>`;
-    await transporter.sendMail({
-      from: process.env.MAIL_USER,
+    await sendMail({
       to: emailInspector,
       subject: `Tu novedad fue ${estado} — CheckInOut`,
       html: html.trim(),
@@ -64,8 +62,7 @@ const enviarCorreoDocumentoProximoVencer = async ({
 <p>El documento ${tipoDocumento} del trabajador ${nombreTrabajador} vence en ${diasRestantes} días.</p>
 <p>Ingresa a CheckInOut para renovarlo.</p>
 `.trim();
-    await transporter.sendMail({
-      from: process.env.MAIL_USER,
+    await sendMail({
       to: emailAdmin,
       subject: 'Documento próximo a vencer — CheckInOut',
       html,
@@ -87,8 +84,7 @@ const enviarCorreoDocumentoVencido = async ({
 <p>El documento ${tipoDocumento} del trabajador ${nombreTrabajador} está vencido.</p>
 <p>Ingresa a CheckInOut para tomar acción.</p>
 `.trim();
-    await transporter.sendMail({
-      from: process.env.MAIL_USER,
+    await sendMail({
       to: emailAdmin,
       subject: 'Documento vencido — CheckInOut',
       html,
@@ -111,8 +107,7 @@ const enviarCorreoJornada = async ({
 <p>Hola, ${nombreAdmin}</p>
 <p>El inspector ${nombreInspector} ${verbo} la jornada en la obra ${nombreObra}.</p>
 `.trim();
-    await transporter.sendMail({
-      from: process.env.MAIL_USER,
+    await sendMail({
       to: emailAdmin,
       subject: `Jornada ${tipo} — CheckInOut`,
       html,
@@ -129,8 +124,7 @@ const enviarCorreoCambioContrasena = async ({ email, nombre }) => {
 <p>Tu contraseña fue cambiada exitosamente.</p>
 <p>Si no fuiste tú, contacta al administrador inmediatamente.</p>
 `.trim();
-    await transporter.sendMail({
-      from: process.env.MAIL_USER,
+    await sendMail({
       to: email,
       subject: 'Cambio de contraseña — CheckInOut',
       html,
@@ -143,8 +137,7 @@ const enviarCorreoCambioContrasena = async ({ email, nombre }) => {
 const enviarCorreoBienvenida = async ({ email, nombre, apellido, passwordTemporal }) => {
   try {
     const html = `<p>Hola, ${nombre} ${apellido}</p><p>Tu cuenta en CheckInOut ha sido creada. Tu contraseña temporal es: <strong>${passwordTemporal}</strong></p><p>Ingresa a la plataforma y cámbiala desde tu perfil.</p>`.trim();
-    await transporter.sendMail({
-      from: process.env.MAIL_USER,
+    await sendMail({
       to: email,
       subject: 'Bienvenido a CheckInOut — Tu contraseña temporal',
       html,
