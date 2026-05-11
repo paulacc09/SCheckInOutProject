@@ -6,6 +6,7 @@ require('dotenv').config();
 const novedadesRoutes = require('./src/routes/novedades.routes');
 const documentosRoutes = require('./src/routes/documentos.routes');
 const notificacionesRoutes = require('./src/routes/notificaciones.routes');
+const dispositivosRoutes = require('./src/routes/dispositivos.routes');
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/usuarios', require('./src/routes/usuarios.routes'));
 app.use('/api/novedades', novedadesRoutes);
 app.use('/api/documentos', documentosRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
+app.use('/api/dispositivos', dispositivosRoutes);
 
 app.get('/api/ping', (req, res) => {
   res.json({ message: 'CheckInOut API funcionando ✅' });
