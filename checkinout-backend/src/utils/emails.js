@@ -140,6 +140,20 @@ const enviarCorreoCambioContrasena = async ({ email, nombre }) => {
   }
 };
 
+const enviarCorreoBienvenida = async ({ email, nombre, apellido, passwordTemporal }) => {
+  try {
+    const html = `<p>Hola, ${nombre} ${apellido}</p><p>Tu cuenta en CheckInOut ha sido creada. Tu contraseña temporal es: <strong>${passwordTemporal}</strong></p><p>Ingresa a la plataforma y cámbiala desde tu perfil.</p>`.trim();
+    await transporter.sendMail({
+      from: process.env.MAIL_USER,
+      to: email,
+      subject: 'Bienvenido a CheckInOut — Tu contraseña temporal',
+      html,
+    });
+  } catch (err) {
+    console.error(err);
+  }
+};
+
 module.exports = {
   enviarCorreoNovedadRegistrada,
   enviarCorreoNovedadResuelta,
@@ -147,4 +161,5 @@ module.exports = {
   enviarCorreoDocumentoVencido,
   enviarCorreoJornada,
   enviarCorreoCambioContrasena,
+  enviarCorreoBienvenida,
 };

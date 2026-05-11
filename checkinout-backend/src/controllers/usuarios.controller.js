@@ -1,11 +1,13 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
+const { enviarCorreoBienvenida } = require('../utils/emails');
 
 const listar = async (req, res) => {
   try {
     let query = `
-      SELECT id, nombre, apellido, email, rol, obra_id
+      SELECT id, nombre, apellido, email, rol, obra_id, estado
       FROM usuarios
       WHERE empresa_id = ?
     `;
@@ -22,9 +24,9 @@ const listar = async (req, res) => {
 };
 
 const crear = async (req, res) => {
-  const { nombre, apellido, email, password, rol, obra_id } = req.body;
-  if (!nombre || !apellido || !email || !password || !rol) {
-    return error(res, 'nombre, apellido, email, password y rol son obligatorios', 400);
+  const { nombre, apellido, email, rol, obra_id } = req.body;
+  if (!nombre || !apellido || !email || !rol) {
+    return error(res, 'nombre, apellido, email y rol son obligatorios', 400);
   }
   try {
     const [existe] = await db.query('SELECT id FROM usuarios WHERE email = ? LIMIT 1', [email]);
@@ -44,12 +46,14 @@ const crear = async (req, res) => {
       }
     }
 
-    const password_hash = await bcrypt.hash(String(password), 10);
+    const passwordTemporal = crypto.randomBytes(6).toString('hex');
+    const password_hash = await bcrypt.hash(passwordTemporal, 10);
     const [result] = await db.query(
       `INSERT INTO usuarios (empresa_id, nombre, apellido, email, password_hash, rol, obra_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [empresaId, nombre, apellido, email, password_hash, rol, obraIdSanitized]
     );
+    await enviarCorreoBienvenida({ email, nombre, apellido, passwordTemporal });
     return success(res, { id: result.insertId }, 201);
   } catch (err) {
     return error(res, err.message, 500);
@@ -57,7 +61,7 @@ const crear = async (req, res) => {
 };
 
 const actualizar = async (req, res) => {
-  const { nombre, apellido, rol, obra_id, password } = req.body;
+  const { nombre, apellido, rol, obra_id, password, estado } = req.body;
   const empresaId = req.usuario.empresa_id;
   const id = req.params.id;
   try {
@@ -77,17 +81,17 @@ const actualizar = async (req, res) => {
       const password_hash = await bcrypt.hash(pwd, 10);
       const [result] = await db.query(
         `UPDATE usuarios
-         SET nombre = ?, apellido = ?, rol = ?, obra_id = ?, password_hash = ?
+         SET nombre = ?, apellido = ?, rol = ?, obra_id = ?, estado = ?, password_hash = ?
          WHERE id = ? AND empresa_id = ?`,
-        [nombre, apellido, rol, obraIdSanitized, password_hash, id, empresaId]
+        [nombre, apellido, rol, obraIdSanitized, estado, password_hash, id, empresaId]
       );
       if (!result.affectedRows) return error(res, 'Usuario no encontrado', 404);
     } else {
       const [result] = await db.query(
         `UPDATE usuarios
-         SET nombre = ?, apellido = ?, rol = ?, obra_id = ?
+         SET nombre = ?, apellido = ?, rol = ?, obra_id = ?, estado = ?
          WHERE id = ? AND empresa_id = ?`,
-        [nombre, apellido, rol, obraIdSanitized, id, empresaId]
+        [nombre, apellido, rol, obraIdSanitized, estado, id, empresaId]
       );
       if (!result.affectedRows) return error(res, 'Usuario no encontrado', 404);
     }

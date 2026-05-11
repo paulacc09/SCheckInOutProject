@@ -13,9 +13,9 @@ const initialForm = () => ({
   nombre: "",
   apellido: "",
   email: "",
-  password: "",
   rol: "inspector_sst",
   obra_id: "",
+  estado: "activo",
 });
 
 function badgeRol(rol) {
@@ -111,9 +111,9 @@ export default function Roles() {
       nombre: u.nombre || "",
       apellido: u.apellido || "",
       email: u.email || "",
-      password: "",
       rol: u.rol || "inspector_sst",
       obra_id: u.obra_id != null ? String(u.obra_id) : "",
+      estado: u.estado || "activo",
     });
     setModalOpen(true);
   };
@@ -124,7 +124,6 @@ export default function Roles() {
     if (!form.apellido.trim()) e.apellido = "Obligatorio";
     if (!editingId) {
       if (!form.email.trim()) e.email = "Obligatorio";
-      if (!form.password.trim()) e.password = "Obligatorio";
     }
     if (!form.rol) e.rol = "Obligatorio";
     if (form.rol !== "administrador" && !String(form.obra_id || "").trim()) {
@@ -147,7 +146,6 @@ export default function Roles() {
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim(),
           email: form.email.trim(),
-          password: form.password,
           rol: form.rol,
           obra_id: obraPayload,
         });
@@ -158,8 +156,8 @@ export default function Roles() {
           apellido: form.apellido.trim(),
           rol: form.rol,
           obra_id: obraPayload,
+          estado: form.estado,
         };
-        if (form.password.trim()) body.password = form.password;
         await api.put(`/usuarios/${editingId}`, body);
         setFlash({ type: "ok", message: "Usuario actualizado" });
       }
@@ -350,17 +348,6 @@ export default function Roles() {
             {formErr.email && <p className="text-xs text-red-600 mt-1">{formErr.email}</p>}
           </div>
           <div>
-            <label className="label">{editingId ? "Contraseña (opcional)" : "Contraseña"}</label>
-            <input
-              type="password"
-              className="input"
-              value={form.password}
-              onChange={(ev) => setForm((f) => ({ ...f, password: ev.target.value }))}
-              autoComplete="new-password"
-            />
-            {formErr.password && <p className="text-xs text-red-600 mt-1">{formErr.password}</p>}
-          </div>
-          <div>
             <label className="label">Rol</label>
             <select
               className="select"
@@ -380,6 +367,19 @@ export default function Roles() {
             </select>
             {formErr.rol && <p className="text-xs text-red-600 mt-1">{formErr.rol}</p>}
           </div>
+          {editingId ? (
+            <div>
+              <label className="label">Estado</label>
+              <select
+                className="select"
+                value={form.estado || "activo"}
+                onChange={(ev) => setForm((f) => ({ ...f, estado: ev.target.value }))}
+              >
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+              </select>
+            </div>
+          ) : null}
           {form.rol !== "administrador" && (
             <div>
               <label className="label">Obra</label>
