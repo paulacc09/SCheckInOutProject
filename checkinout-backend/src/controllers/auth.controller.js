@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { success, error } = require('../utils/response');
 const { registrarAuditoria } = require('../utils/audit');
-const transporter = require('../utils/mailer');
+const { sendMail } = require('../utils/mailer');
 const { crearNotificacion } = require('../utils/notificaciones');
 const { enviarCorreoCambioContrasena } = require('../utils/emails');
 
@@ -217,8 +217,7 @@ const solicitarRecuperacion = async (req, res) => {
       [token, usuario.id]
     );
 
-    await transporter.sendMail({
-      from: process.env.MAIL_USER,
+    await sendMail({
       to: usuario.email,
       subject: "Recuperación de contraseña - CheckInOut",
       html: `
