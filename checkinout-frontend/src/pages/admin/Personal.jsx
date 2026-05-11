@@ -104,7 +104,7 @@ export default function Personal() {
     setError("");
     try {
       const { data } = await api.get("/trabajadores");
-      setTrabajadores(data.trabajadores || data.data || data || []);
+      setTrabajadores(Array.isArray(data) ? data : data.trabajadores ?? data.data?.trabajadores ?? data.data ?? []);
     } catch (err) {
       setError(err.response?.data?.mensaje || "No se pudo cargar el personal");
     } finally {
@@ -289,7 +289,7 @@ export default function Personal() {
             {errores.tipo_documento && <p className="text-xs text-red-600 mt-1">{errores.tipo_documento}</p>}
           </div>
           <div className="sm:col-span-3">
-            <label className="label">N┬░ documento</label>
+            <label className="label">N° documento</label>
             <input className="input" required value={form.cedula} onChange={(e) => onFieldChange("cedula", e.target.value)} />
             {errores.cedula && <p className="text-xs text-red-600 mt-1">{errores.cedula}</p>}
           </div>
