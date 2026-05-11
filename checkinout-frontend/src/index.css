@@ -7,7 +7,7 @@
    Paleta basada en mockups Figma (azul corporativo + neutros)
    =========================================================== */
 :root {
-  --co-primary: #1e3a8a;        /* azul oscuro - headers, sidebar */
+  --co-primary: #1565C0;        /* azul oscuro - headers, sidebar */
   --co-primary-600: #1d4ed8;
   --co-primary-500: #2563eb;
   --co-primary-50: #eff6ff;
@@ -23,13 +23,13 @@
   --co-info: #0ea5e9;
   --co-info-bg: #e0f2fe;
 
-  --co-bg: #f5f7fb;             /* fondo general */
+  --co-bg: #1a1a2e;             /* fondo general oscuro */
   --co-surface: #ffffff;        /* cards/tablas */
   --co-border: #e5e7eb;
   --co-text: #0f172a;
   --co-text-muted: #64748b;
 
-  --co-sidebar-bg: #0f1f4d;     /* sidebar azul muy oscuro */
+  --co-sidebar-bg: #1a1a2e;     /* sidebar azul muy oscuro */
   --co-sidebar-hover: #1e3a8a;
   --co-sidebar-active: #2563eb;
   --co-sidebar-text: #cbd5e1;
@@ -141,9 +141,9 @@ body {
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
-  .badge-success { background: var(--co-success-bg); color: var(--co-success); }
-  .badge-warning { background: var(--co-warning-bg); color: #92400e; }
-  .badge-danger  { background: var(--co-danger-bg);  color: var(--co-danger); }
+  .badge-success { background: #4CAF50; color: #fff; }
+  .badge-warning { background: #f59e0b; color: #fff; }
+  .badge-danger  { background: #F44336; color: #fff; }
   .badge-info    { background: var(--co-info-bg);    color: #075985; }
   .badge-muted   { background: #f1f5f9; color: var(--co-text-muted); }
 

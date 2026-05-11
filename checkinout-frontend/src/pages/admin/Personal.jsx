@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Plus, Search, Loader2, Pencil, AlertCircle } from "lucide-react";
 import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
@@ -289,7 +289,7 @@ export default function Personal() {
             {errores.tipo_documento && <p className="text-xs text-red-600 mt-1">{errores.tipo_documento}</p>}
           </div>
           <div className="sm:col-span-3">
-            <label className="label">N° documento</label>
+            <label className="label">N┬░ documento</label>
             <input className="input" required value={form.cedula} onChange={(e) => onFieldChange("cedula", e.target.value)} />
             {errores.cedula && <p className="text-xs text-red-600 mt-1">{errores.cedula}</p>}
           </div>

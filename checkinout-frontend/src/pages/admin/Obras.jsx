@@ -1,210 +1,254 @@
-import { useEffect, useState } from "react";
-import { Plus, Search, Loader2, MapPin, Users as UsersIcon, AlertCircle } from "lucide-react";
-import api from "../../api/axios";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  ClipboardList,
+  Clock3,
+  HardDrive,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  UserRound,
+  Users,
+} from "lucide-react";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
-import EmptyState from "../../components/EmptyState";
+import PaginationBar from "../../components/PaginationBar";
+import FlashBanner from "../../components/FlashBanner";
+import { paginate } from "../../services/pagination";
+import * as obrasService from "../../services/obrasService";
 
-const ESTADO_BADGE = {
-  activa:     "badge badge-success",
-  finalizada: "badge badge-muted",
-  suspendida: "badge badge-warning",
-};
+const PAGE_SIZE = 8;
+
+function badgeObra(estado) {
+  if (estado === "activa") return "bg-[#dcfce7] text-[#16a34a]";
+  if (estado === "suspendida") return "bg-[#fef3c7] text-[#b45309]";
+  return "bg-[#f3f4f6] text-[#6b7280]";
+}
 
 export default function Obras() {
-  const codigoRegex = /^[A-Z0-9-]{3,20}$/;
-  const nombreRegex = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s-]{3,100}$/;
-  const ciudadRegex = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]{2,60}$/;
-
-  const [obras, setObras] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [q, setQ] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("");
-  const [openModal, setOpenModal] = useState(false);
+  const [estado, setEstado] = useState("");
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [stats, setStats] = useState({
+    trabajadoresActivos: 0,
+    asistenciaPromedio: 0,
+    asistenciasSinJustificar: 0,
+    pendientes: 0,
+  });
+  const [pendientes, setPendientes] = useState([]);
+  const [pendTipo, setPendTipo] = useState("Todos");
+  const [pendObra, setPendObra] = useState("Todas");
+  const [loading, setLoading] = useState(true);
+  const [flash, setFlash] = useState(null);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [errores, setErrores] = useState({});
+  const [formErr, setFormErr] = useState({});
   const [form, setForm] = useState({
-    codigo: "", nombre: "", direccion: "", ciudad: "",
-    fecha_inicio: "", fecha_fin: "",
-    estado: "activa", responsable_sst_id: "", id_dispositivo: "",
+    id: "",
+    nombre: "",
+    ubicacion: "",
+    estado: "activa",
   });
 
-  const validarFormulario = () => {
-    const nuevosErrores = {};
-    const codigoLimpio = form.codigo.trim();
-    const nombreLimpio = form.nombre.trim();
-    const ciudadLimpia = form.ciudad.trim();
-    const direccionLimpia = form.direccion.trim();
-    const fechaInicio = (form.fecha_inicio || "").trim();
-    const fechaFin = (form.fecha_fin || "").trim();
-
-    if (!codigoRegex.test(codigoLimpio)) {
-      nuevosErrores.codigo = "El código debe tener 3 a 20 caracteres, solo mayúsculas, números y guiones, sin espacios.";
-    }
-    if (!nombreRegex.test(nombreLimpio)) {
-      nuevosErrores.nombre = "El nombre debe tener 3 a 100 caracteres y solo letras, números, espacios y guiones.";
-    }
-    if (ciudadLimpia && !ciudadRegex.test(ciudadLimpia)) {
-      nuevosErrores.ciudad = "La ciudad debe tener 2 a 60 caracteres y solo letras y espacios.";
-    }
-    if (direccionLimpia && (direccionLimpia.length < 5 || direccionLimpia.length > 150)) {
-      nuevosErrores.direccion = "La dirección debe tener entre 5 y 150 caracteres.";
-    }
-    if (fechaInicio && fechaFin && new Date(fechaFin) < new Date(fechaInicio)) {
-      nuevosErrores.fecha_fin = "La fecha de fin debe ser igual o posterior a la fecha de inicio.";
-    }
-
-    return nuevosErrores;
-  };
-
-  const onFieldChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    setErrores((prev) => {
-      if (!prev[field]) return prev;
-      return { ...prev, [field]: "" };
-    });
-  };
-
-  const abrirModalObra = () => {
-    setErrores({});
-    setOpenModal(true);
-  };
-
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     setLoading(true);
-    setError("");
-    try {
-      const { data } = await api.get("/obras");
-      setObras(data.obras || data.data || data || []);
-    } catch (err) {
-      setError(err.response?.data?.mensaje || "No se pudieron cargar las obras");
-    } finally {
-      setLoading(false);
-    }
+    const [obrasRes, statsRes, pendientesRes] = await Promise.all([
+      obrasService.getAll({ search: q, estado }),
+      obrasService.getGlobalStats(),
+      obrasService.getPendientes({ tipo: pendTipo, obra: pendObra }),
+    ]);
+    setLoading(false);
+    if (!obrasRes.ok) return setFlash({ type: "error", message: obrasRes.message });
+    if (!statsRes.ok) return setFlash({ type: "error", message: statsRes.message });
+    if (!pendientesRes.ok) return setFlash({ type: "error", message: pendientesRes.message });
+    setRows(obrasRes.data);
+    setStats(statsRes.data);
+    setPendientes(pendientesRes.data);
+  }, [q, estado, pendTipo, pendObra]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, estado]);
+
+  const obrasOptions = useMemo(() => ["Todas", ...rows.map((o) => o.nombre)], [rows]);
+  const { items: pageRows, totalPages, page: safePage } = useMemo(
+    () => paginate(rows, page, PAGE_SIZE),
+    [rows, page]
+  );
+
+  const openCreate = async () => {
+    setEditingId(null);
+    setFormErr({});
+    setForm({
+      id: obrasService.getNextObraId(),
+      nombre: "",
+      ubicacion: "",
+      estado: "activa",
+    });
+    setModalOpen(true);
   };
 
-  useEffect(() => { cargar(); }, []);
+  const openEdit = (row) => {
+    setEditingId(row.id);
+    setFormErr({});
+    setForm({
+      id: row.id,
+      nombre: row.nombre,
+      ubicacion: row.ubicacion,
+      estado: row.estado,
+    });
+    setModalOpen(true);
+  };
 
-  const filtradas = obras.filter((o) => {
-    const t = q.toLowerCase();
-    const okQ = !t ||
-      (o.nombre || "").toLowerCase().includes(t) ||
-      (o.codigo || "").toLowerCase().includes(t) ||
-      (o.ciudad || "").toLowerCase().includes(t);
-    const okEstado = !filtroEstado || o.estado === filtroEstado;
-    return okQ && okEstado;
-  });
+  const validate = () => {
+    const err = {};
+    if (!form.nombre.trim()) err.nombre = "El nombre es obligatorio";
+    if (!form.ubicacion.trim()) err.ubicacion = "La ubicación es obligatoria";
+    setFormErr(err);
+    return Object.keys(err).length === 0;
+  };
 
-  const onCrear = async (e) => {
+  const save = async (e) => {
     e.preventDefault();
-    const nuevosErrores = validarFormulario();
-    setErrores(nuevosErrores);
-    if (Object.keys(nuevosErrores).length > 0) return;
-
+    if (!validate()) return;
     setSaving(true);
-    try {
-      await api.post("/obras", form);
-      setOpenModal(false);
-      setForm({
-        codigo: "", nombre: "", direccion: "", ciudad: "",
-        fecha_inicio: "", fecha_fin: "",
-        estado: "activa", responsable_sst_id: "", id_dispositivo: ""
-      });
-      await cargar();
-    } catch (err) {
-      alert(err.response?.data?.mensaje || "Error al crear la obra");
-    } finally {
-      setSaving(false);
-    }
+    const payload = {
+      id: form.id,
+      nombre: form.nombre,
+      ubicacion: form.ubicacion,
+      estado: form.estado,
+    };
+    const res = editingId
+      ? await obrasService.update(editingId, payload)
+      : await obrasService.create(payload);
+    setSaving(false);
+    if (!res.ok) return setFlash({ type: "error", message: res.message });
+    setModalOpen(false);
+    setFlash({ type: "ok", message: editingId ? "Obra actualizada" : "Obra creada" });
+    await cargar();
+  };
+
+  const removeRow = async (row) => {
+    if (!window.confirm(`¿Eliminar la obra ${row.nombre}? Esta acción no se puede deshacer`)) return;
+    const res = await obrasService.remove(row.id);
+    if (!res.ok) return setFlash({ type: "error", message: res.message });
+    setFlash({ type: "ok", message: "Obra eliminada" });
+    await cargar();
+  };
+
+  const iconByType = (tipo) => {
+    if (tipo === "Médico") return <UserRound className="w-4 h-4 text-[#3b82f6]" />;
+    if (tipo === "Asistencia") return <ClipboardList className="w-4 h-4 text-[#22c55e]" />;
+    return <HardDrive className="w-4 h-4 text-[#f59e0b]" />;
   };
 
   return (
     <>
       <TopBar
         title="Mis Obras"
-        subtitle="Gestiona los proyectos de construcción de tu empresa"
         right={
-          <button onClick={abrirModalObra} className="btn btn-primary">
+          <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} onClick={openCreate}>
             <Plus className="w-4 h-4" /> Crear Obra
           </button>
         }
       />
+      <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
+        {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 
-      <div className="p-6 space-y-4">
-        {/* Filtros */}
         <div className="card card-body flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="input pl-9"
-              placeholder="Buscar por código, nombre o ciudad…"
-            />
+            <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." />
           </div>
-          <select className="select sm:w-40" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
+          <select className="select sm:w-48" value={estado} onChange={(e) => setEstado(e.target.value)}>
             <option value="">Todos los estados</option>
-            <option value="activa">Activa</option>
-            <option value="finalizada">Finalizada</option>
-            <option value="suspendida">Suspendida</option>
+            <option value="activa">activa</option>
+            <option value="finalizada">finalizada</option>
+            <option value="suspendida">suspendida</option>
           </select>
         </div>
 
-        {/* Tabla */}
+        <div className="grid md:grid-cols-4 gap-4">
+          <div className="card card-body"><div className="flex items-center gap-2"><Users className="w-5 h-5 text-[#3b82f6]" /><div className="text-[30px] font-bold">{stats.trabajadoresActivos}</div></div><div className="text-xs text-slate-500">Trabajadores Activos</div></div>
+          <div className="card card-body"><div className="flex items-center gap-2"><ClipboardList className="w-5 h-5 text-[#22c55e]" /><div className="text-[30px] font-bold">{stats.asistenciaPromedio}%</div></div><div className="text-xs text-slate-500">Asistencia Promedio Hoy</div></div>
+          <div className="card card-body"><div className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-[#f59e0b]" /><div className="text-[30px] font-bold">{stats.asistenciasSinJustificar}</div></div><div className="text-xs text-slate-500">Asistencias sin Justificar</div></div>
+          <div className="card card-body"><div className="flex items-center gap-2"><Clock3 className="w-5 h-5 text-[#ef4444]" /><div className="text-[30px] font-bold">{stats.pendientes}</div></div><div className="text-xs text-slate-500">Pendientes</div></div>
+        </div>
+
+        <div className="card card-body space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-slate-800">Pendientes</h3>
+            <span className="inline-flex w-7 h-7 items-center justify-center rounded-full bg-red-100 text-red-600 text-sm font-semibold">{stats.pendientes}</span>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <select className="select" value={pendTipo} onChange={(e) => setPendTipo(e.target.value)}>
+              <option>Todos</option>
+              <option>Médico</option>
+              <option>Asistencia</option>
+              <option>Dispositivo</option>
+            </select>
+            <select className="select" value={pendObra} onChange={(e) => setPendObra(e.target.value)}>
+              {obrasOptions.map((o) => (
+                <option key={o}>{o}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            {pendientes.length ? (
+              pendientes.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 bg-white">
+                  <div className="flex items-center gap-2">
+                    {iconByType(p.tipo)}
+                    <div>
+                      <div className="text-sm font-semibold">{p.titulo}</div>
+                      <div className="text-xs text-slate-500">{p.trabajador ? `${p.trabajador} — ${p.obra}` : p.obra}</div>
+                    </div>
+                  </div>
+                  <span className={`badge ${p.tipo === "Médico" ? "bg-blue-100 text-blue-700" : p.tipo === "Asistencia" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+                    {p.tipo}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-slate-500 text-center py-4">No hay pendientes para los filtros seleccionados</div>
+            )}
+          </div>
+        </div>
+
         {loading ? (
-          <div className="card card-body flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          </div>
-        ) : error ? (
-          <div className="card card-body flex items-center gap-2 text-red-600">
-            <AlertCircle className="w-5 h-5" /> {error}
-          </div>
-        ) : filtradas.length === 0 ? (
-          <div className="card">
-            <EmptyState
-              title="Aún no hay obras"
-              message="Crea tu primera obra para comenzar a gestionar la asistencia."
-              action={
-                <button onClick={abrirModalObra} className="btn btn-primary">
-                  <Plus className="w-4 h-4" /> Crear Obra
-                </button>
-              }
-            />
-          </div>
+          <div className="card card-body text-center text-slate-500">Cargando...</div>
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Código</th>
+                  <th>ID_OBRA</th>
                   <th>Nombre</th>
                   <th>Ubicación</th>
                   <th>Estado</th>
                   <th>Personal</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {filtradas.map((o) => (
+                {pageRows.map((o) => (
                   <tr key={o.id}>
-                    <td className="font-mono text-xs">{o.codigo}</td>
-                    <td className="font-medium text-slate-800">{o.nombre}</td>
-                    <td className="text-slate-600">
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        {o.ciudad || "—"}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={ESTADO_BADGE[o.estado] || "badge badge-muted"}>
-                        {o.estado}
-                      </span>
-                    </td>
-                    <td className="text-slate-600">
-                      <span className="inline-flex items-center gap-1">
-                        <UsersIcon className="w-3.5 h-3.5 text-slate-400" />
-                        {o.personal_asignado ?? o.total_personal ?? 0}
-                      </span>
+                    <td>{o.id}</td>
+                    <td>{o.nombre}</td>
+                    <td>{o.ubicacion}</td>
+                    <td><span className={`badge ${badgeObra(o.estado)}`}>{o.estado}</span></td>
+                    <td>{o.personal ?? 0}</td>
+                    <td className="flex gap-2">
+                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => openEdit(o)}><Pencil className="w-4 h-4 text-slate-600" /></button>
+                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => removeRow(o)}><Trash2 className="w-4 h-4 text-red-600" /></button>
                     </td>
                   </tr>
                 ))}
@@ -212,90 +256,44 @@ export default function Obras() {
             </table>
           </div>
         )}
+        {!!rows.length && <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />}
       </div>
 
-      {/* Modal Crear */}
       <Modal
-        open={openModal}
-        onClose={() => {
-          setErrores({});
-          setOpenModal(false);
-        }}
-        title="Crear nueva obra"
-        size="lg"
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingId ? "Editar Obra" : "Crear Nueva Obra"}
         footer={
           <>
-            <button onClick={() => {
-              setErrores({});
-              setOpenModal(false);
-            }} className="btn btn-outline">Cancelar</button>
-            <button onClick={onCrear} disabled={saving} className="btn btn-primary">
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />} Crear Obra
+            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
+            <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} disabled={saving} onClick={save}>
+              {editingId ? "Guardar cambios" : "Crear Obra"}
             </button>
           </>
         }
       >
-        <form onSubmit={onCrear} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <form className="space-y-3" onSubmit={save}>
           <div>
-            <label className="label">Código de obra</label>
-            <input className="input" required value={form.codigo}
-              onChange={(e) => onFieldChange("codigo", e.target.value)}
-              placeholder="Ej. 26IBG02" />
-            {errores.codigo && <p className="text-xs text-red-600 mt-1">{errores.codigo}</p>}
+            <label className="label">ID Obra</label>
+            <input className="input" value={form.id} onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))} />
           </div>
           <div>
             <label className="label">Nombre de la obra</label>
-            <input className="input" required value={form.nombre}
-              onChange={(e) => onFieldChange("nombre", e.target.value)}
-              placeholder="Nombre del proyecto" />
-            {errores.nombre && <p className="text-xs text-red-600 mt-1">{errores.nombre}</p>}
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">Dirección / Ubicación</label>
-            <input className="input" value={form.direccion}
-              onChange={(e) => onFieldChange("direccion", e.target.value)}
-              placeholder="Dirección completa" />
-            {errores.direccion && <p className="text-xs text-red-600 mt-1">{errores.direccion}</p>}
+            <input className="input" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
+            {formErr.nombre && <p className="text-xs text-red-600 mt-1">{formErr.nombre}</p>}
           </div>
           <div>
-            <label className="label">Ciudad</label>
-            <input className="input" value={form.ciudad}
-              onChange={(e) => onFieldChange("ciudad", e.target.value)} />
-            {errores.ciudad && <p className="text-xs text-red-600 mt-1">{errores.ciudad}</p>}
+            <label className="label">Ubicación / Ciudad</label>
+            <input className="input" value={form.ubicacion} onChange={(e) => setForm((f) => ({ ...f, ubicacion: e.target.value }))} />
+            {formErr.ubicacion && <p className="text-xs text-red-600 mt-1">{formErr.ubicacion}</p>}
           </div>
           <div>
-            <label className="label">Estado inicial</label>
-            <select className="select" value={form.estado}
-              onChange={(e) => onFieldChange("estado", e.target.value)}>
-              <option value="activa">Activa</option>
-              <option value="suspendida">Suspendida</option>
-              <option value="finalizada">Finalizada</option>
+            <label className="label">Estado</label>
+            <select className="select" value={form.estado} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
+              <option value="activa">activa</option>
+              <option value="finalizada">finalizada</option>
+              <option value="suspendida">suspendida</option>
             </select>
-          </div>
-          <div>
-            <label className="label">Fecha inicio</label>
-            <input
-              type="date"
-              className="input"
-              value={form.fecha_inicio}
-              onChange={(e) => onFieldChange("fecha_inicio", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Fecha fin</label>
-            <input
-              type="date"
-              className="input"
-              value={form.fecha_fin}
-              onChange={(e) => onFieldChange("fecha_fin", e.target.value)}
-            />
-            {errores.fecha_fin && <p className="text-xs text-red-600 mt-1">{errores.fecha_fin}</p>}
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">ID Dispositivo principal (opcional)</label>
-            <input className="input" value={form.id_dispositivo}
-              onChange={(e) => onFieldChange("id_dispositivo", e.target.value)}
-              placeholder="ID del dispositivo de marcaje" />
           </div>
         </form>
       </Modal>
