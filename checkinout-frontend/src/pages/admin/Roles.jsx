@@ -1,75 +1,96 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
 import { paginate } from "../../services/pagination";
-import * as usuariosService from "../../services/usuariosService";
-import { getNombresObras } from "../../services/obrasService";
 
 const PAGE_SIZE = 10;
 
-const ROLE_CLASS = {
-  "Inspector SST": "bg-[#22c55e] text-white",
-  Encargado: "bg-[#f59e0b] text-white",
-  Administrador: "bg-[#3b82f6] text-white",
-};
+const initialForm = () => ({
+  nombre: "",
+  apellido: "",
+  email: "",
+  password: "",
+  rol: "inspector_sst",
+  obra_id: "",
+});
+
+function badgeRol(rol) {
+  if (rol === "inspector_sst") return "bg-[#22c55e] text-white";
+  if (rol === "encargado") return "bg-[#f59e0b] text-white";
+  if (rol === "administrador") return "bg-[#3b82f6] text-white";
+  return "bg-[#f3f4f6] text-[#6b7280]";
+}
+
+function etiquetaRol(rol) {
+  if (rol === "inspector_sst") return "Inspector SST";
+  if (rol === "encargado") return "Encargado";
+  if (rol === "administrador") return "Administrador";
+  return rol || "—";
+}
 
 export default function Roles() {
   const [q, setQ] = useState("");
   const [rolFiltro, setRolFiltro] = useState("");
-  const [estadoFiltro, setEstadoFiltro] = useState("");
   const [page, setPage] = useState(1);
   const [lista, setLista] = useState([]);
+  const [obras, setObras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(null);
-  const [obrasOpts, setObrasOpts] = useState([]);
-  const rolesOpts = usuariosService.getRolesOpciones();
-
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    nombre: "",
-    correo: "",
-    password: "",
-    rol: "Encargado",
-    obra: "",
-    estado: "Activo",
-  });
+  const [form, setForm] = useState(initialForm);
   const [formErr, setFormErr] = useState({});
 
   const cargar = useCallback(async () => {
     setLoading(true);
-    const res = await usuariosService.getAll({
-      search: q,
-      rol: rolFiltro,
-      estado: estadoFiltro,
-    });
-    setLoading(false);
-    if (!res.ok) {
-      setFlash({ type: "error", message: res.message });
+    setFlash(null);
+    try {
+      const params = {};
+      if (rolFiltro) params.rol = rolFiltro;
+      const { data } = await api.get("/usuarios", { params });
+      let rows = Array.isArray(data) ? data : data.data ?? [];
+      const qt = q.trim().toLowerCase();
+      if (qt) {
+        rows = rows.filter((u) => {
+          const n = `${u.nombre || ""} ${u.apellido || ""} ${u.email || ""}`.toLowerCase();
+          return n.includes(qt);
+        });
+      }
+      setLista(rows);
+    } catch (e) {
+      setFlash({
+        type: "error",
+        message: e.response?.data?.message || "No se pudieron cargar los usuarios",
+      });
       setLista([]);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setLista(res.data);
-  }, [q, rolFiltro, estadoFiltro]);
+  }, [q, rolFiltro]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get("/obras");
+        setObras(Array.isArray(data) ? data : data.data ?? []);
+      } catch {
+        setObras([]);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
   useEffect(() => {
-    (async () => {
-      const r = await getNombresObras();
-      if (r.ok) setObrasOpts(r.data);
-    })();
-  }, []);
-
-  useEffect(() => {
     setPage(1);
-  }, [q, rolFiltro, estadoFiltro]);
+  }, [q, rolFiltro]);
 
   const { items: rows, totalPages, page: safePage } = useMemo(
     () => paginate(lista, page, PAGE_SIZE),
@@ -79,32 +100,20 @@ export default function Roles() {
   const abrirCrear = () => {
     setEditingId(null);
     setFormErr({});
-    setForm({
-      nombre: "",
-      correo: "",
-      password: "",
-      rol: "Encargado",
-      obra: obrasOpts[0] || "",
-      estado: "Activo",
-    });
+    setForm(initialForm());
     setModalOpen(true);
   };
 
-  const abrirEditar = async (u) => {
+  const abrirEditar = (u) => {
     setEditingId(u.id);
     setFormErr({});
-    const res = await usuariosService.getById(u.id);
-    if (!res.ok) {
-      setFlash({ type: "error", message: res.message });
-      return;
-    }
     setForm({
-      nombre: res.data.nombre,
-      correo: res.data.correo,
+      nombre: u.nombre || "",
+      apellido: u.apellido || "",
+      email: u.email || "",
       password: "",
-      rol: res.data.rol,
-      obra: res.data.obra,
-      estado: res.data.estado,
+      rol: u.rol || "inspector_sst",
+      obra_id: u.obra_id != null ? String(u.obra_id) : "",
     });
     setModalOpen(true);
   };
@@ -112,204 +121,273 @@ export default function Roles() {
   const validar = () => {
     const e = {};
     if (!form.nombre.trim()) e.nombre = "Obligatorio";
-    if (!form.correo.trim()) e.correo = "Obligatorio";
-    if (!editingId && !form.password.trim()) e.password = "Obligatorio";
+    if (!form.apellido.trim()) e.apellido = "Obligatorio";
+    if (!editingId) {
+      if (!form.email.trim()) e.email = "Obligatorio";
+      if (!form.password.trim()) e.password = "Obligatorio";
+    }
     if (!form.rol) e.rol = "Obligatorio";
-    if (!form.obra) e.obra = "Obligatorio";
+    if (form.rol !== "administrador" && !String(form.obra_id || "").trim()) {
+      e.obra_id = "Obligatorio";
+    }
     setFormErr(e);
     return Object.keys(e).length === 0;
   };
 
-  const guardar = async (ev) => {
-    ev.preventDefault();
+  const guardar = async (e) => {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
     if (!validar()) return;
     setSaving(true);
-    const payload = { ...form };
-    if (editingId && !payload.password.trim()) delete payload.password;
-    const res = editingId
-      ? await usuariosService.update(editingId, payload)
-      : await usuariosService.create(payload);
-    setSaving(false);
-    if (!res.ok) {
-      setFlash({ type: "error", message: res.message });
-      return;
-    }
-    setFlash({ type: "ok", message: editingId ? "Usuario actualizado" : "Usuario creado" });
-    setModalOpen(false);
-    await cargar();
-  };
-
-  const cambiarRol = async (id, nuevoRol) => {
-    setLoading(true);
-    const res = await usuariosService.updateRol(id, nuevoRol);
-    setLoading(false);
-    if (!res.ok) setFlash({ type: "error", message: res.message });
-    else {
-      setFlash({ type: "ok", message: "Rol actualizado" });
+    setFlash(null);
+    const obraPayload =
+      form.rol === "administrador" ? null : form.obra_id ? Number(form.obra_id) : null;
+    try {
+      if (!editingId) {
+        await api.post("/usuarios", {
+          nombre: form.nombre.trim(),
+          apellido: form.apellido.trim(),
+          email: form.email.trim(),
+          password: form.password,
+          rol: form.rol,
+          obra_id: obraPayload,
+        });
+        setFlash({ type: "ok", message: "Usuario creado" });
+      } else {
+        const body = {
+          nombre: form.nombre.trim(),
+          apellido: form.apellido.trim(),
+          rol: form.rol,
+          obra_id: obraPayload,
+        };
+        if (form.password.trim()) body.password = form.password;
+        await api.put(`/usuarios/${editingId}`, body);
+        setFlash({ type: "ok", message: "Usuario actualizado" });
+      }
+      setModalOpen(false);
       await cargar();
+    } catch (err) {
+      setFlash({
+        type: "error",
+        message: err.response?.data?.message || "No se pudo guardar",
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
   const eliminar = async (u) => {
-    if (!window.confirm(`¿Eliminar al usuario ${u.nombre}?`)) return;
-    setLoading(true);
-    const res = await usuariosService.remove(u.id);
-    setLoading(false);
-    if (!res.ok) setFlash({ type: "error", message: res.message });
-    else {
+    if (!window.confirm("¿Eliminar este usuario?")) return;
+    setFlash(null);
+    try {
+      await api.delete(`/usuarios/${u.id}`);
       setFlash({ type: "ok", message: "Usuario eliminado" });
       await cargar();
+    } catch (err) {
+      setFlash({
+        type: "error",
+        message: err.response?.data?.message || "No se pudo eliminar",
+      });
     }
   };
+
+  const obrasParaSelect = form.rol !== "administrador" ? obras : [];
 
   return (
     <>
       <TopBar
-        title="Gestión Roles"
-        right={(
-          <button type="button" className="btn text-white rounded-lg" style={{ background: "#1e3a6e" }} onClick={abrirCrear}>
+        title="Roles y usuarios"
+        right={
+          <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} onClick={abrirCrear}>
             <Plus className="w-4 h-4" /> Crear Usuario
           </button>
-        )}
+        }
       />
       <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
-        {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
+        {flash && (
+          <FlashBanner
+            type={flash.type === "error" ? "error" : "ok"}
+            message={flash.message}
+            onClose={() => setFlash(null)}
+          />
+        )}
 
-        <div className="card card-body flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="card card-body flex flex-col sm:flex-row flex-wrap gap-3">
+          <div className="relative flex-1 min-w-[12rem]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" />
+            <input
+              className="input pl-9"
+              value={q}
+              onChange={(ev) => setQ(ev.target.value)}
+              placeholder="Buscar por nombre, apellido o email…"
+            />
           </div>
-          <select className="select sm:w-44" value={rolFiltro} onChange={(e) => setRolFiltro(e.target.value)}>
-            <option value="">Todos</option>
-            {rolesOpts.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-          <select className="select sm:w-40" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}>
-            <option value="">Estado</option>
-            <option value="Activo">Activo</option>
-            <option value="Inactivo">Inactivo</option>
+          <select className="select sm:w-56" value={rolFiltro} onChange={(ev) => setRolFiltro(ev.target.value)}>
+            <option value="">Todos los roles</option>
+            <option value="inspector_sst">Inspector SST</option>
+            <option value="encargado">Encargado</option>
+            <option value="administrador">Administrador</option>
           </select>
         </div>
 
         {loading ? (
           <div className="card card-body flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-[#1565C0]" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#1e3a6e]" />
           </div>
+        ) : lista.length === 0 ? (
+          <div className="card card-body text-center text-slate-500">No hay usuarios que coincidan.</div>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Obra</th><th>Estado</th><th>Editar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((u, idx) => (
-                  <tr key={u.id} className={idx % 2 ? "bg-slate-50/50" : ""}>
-                    <td>{u.id}</td>
-                    <td className="font-medium">{u.nombre}</td>
-                    <td>{u.correo}</td>
-                    <td>
-                      <select
-                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 cursor-pointer ${ROLE_CLASS[u.rol] || "bg-slate-100"}`}
-                        value={u.rol}
-                        onChange={(e) => cambiarRol(u.id, e.target.value)}
-                      >
-                        {rolesOpts.map((r) => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>{u.obra}</td>
-                    <td>
-                      <span className={`badge ${u.estado === "Activo" ? "badge-success" : "badge-danger"}`}>{u.estado}</span>
-                    </td>
-                    <td className="flex gap-2">
-                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => abrirEditar(u)}>
-                        <Pencil className="w-4 h-4 text-slate-600" />
-                      </button>
-                      <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => eliminar(u)}>
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </button>
-                    </td>
+          <>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th>Obra</th>
+                    <th>Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.nombre ?? "—"}</td>
+                      <td>{r.apellido ?? "—"}</td>
+                      <td>{r.email ?? "—"}</td>
+                      <td>
+                        <span className={`badge ${badgeRol(r.rol)}`}>{etiquetaRol(r.rol)}</span>
+                      </td>
+                      <td>{obras.find((o) => String(o.id) === String(r.obra_id))?.nombre ?? "—"}</td>
+                      <td className="flex gap-2">
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-lg hover:bg-slate-100"
+                          onClick={() => abrirEditar(r)}
+                          title="Editar"
+                        >
+                          <Pencil className="w-4 h-4 text-slate-600" />
+                        </button>
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-lg hover:bg-slate-100"
+                          onClick={() => eliminar(r)}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />
+          </>
         )}
-
-        {lista.length > 0 && (
-          <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />
-        )}
-
-        <div className="text-sm text-slate-600">
-          Roles disponibles:{" "}
-          <span className="badge bg-[#22c55e] text-white">Inspector SST</span>{" "}
-          <span className="badge bg-[#f59e0b] text-white">Encargado</span>{" "}
-          <span className="badge bg-[#3b82f6] text-white">Administrador</span>
-        </div>
       </div>
 
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingId ? "Editar usuario" : "Crear usuario"}
-        size="lg"
-        footer={(
+        footer={
           <>
-            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
-            <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} disabled={saving} onClick={guardar}>
+            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn text-white"
+              style={{ background: "#1e3a6e" }}
+              disabled={saving}
+              onClick={guardar}
+            >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {editingId ? "Guardar cambios" : "Crear"}
+              {editingId ? "Guardar" : "Crear"}
             </button>
           </>
-        )}
+        }
       >
-        <form className="grid grid-cols-1 sm:grid-cols-2 gap-4" onSubmit={guardar}>
-          <div className="sm:col-span-2">
+        <form className="space-y-3" onSubmit={guardar}>
+          <div>
             <label className="label">Nombre</label>
-            <input className="input" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
+            <input
+              className="input"
+              value={form.nombre}
+              onChange={(ev) => setForm((f) => ({ ...f, nombre: ev.target.value }))}
+            />
             {formErr.nombre && <p className="text-xs text-red-600 mt-1">{formErr.nombre}</p>}
           </div>
           <div>
-            <label className="label">Correo</label>
-            <input className="input" type="email" disabled={!!editingId} value={form.correo} onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} />
-            {formErr.correo && <p className="text-xs text-red-600 mt-1">{formErr.correo}</p>}
+            <label className="label">Apellido</label>
+            <input
+              className="input"
+              value={form.apellido}
+              onChange={(ev) => setForm((f) => ({ ...f, apellido: ev.target.value }))}
+            />
+            {formErr.apellido && <p className="text-xs text-red-600 mt-1">{formErr.apellido}</p>}
           </div>
           <div>
-            <label className="label">Contraseña {editingId && "(opcional)"}</label>
-            <input className="input" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={editingId ? "Dejar vacío para no cambiar" : "Mínimo 8 caracteres"} />
-            <p className="text-xs text-slate-500 mt-1">Mínimo 8 caracteres</p>
+            <label className="label">Email</label>
+            <input
+              type="email"
+              className="input"
+              value={form.email}
+              disabled={Boolean(editingId)}
+              onChange={(ev) => setForm((f) => ({ ...f, email: ev.target.value }))}
+            />
+            {formErr.email && <p className="text-xs text-red-600 mt-1">{formErr.email}</p>}
+          </div>
+          <div>
+            <label className="label">{editingId ? "Contraseña (opcional)" : "Contraseña"}</label>
+            <input
+              type="password"
+              className="input"
+              value={form.password}
+              onChange={(ev) => setForm((f) => ({ ...f, password: ev.target.value }))}
+              autoComplete="new-password"
+            />
             {formErr.password && <p className="text-xs text-red-600 mt-1">{formErr.password}</p>}
           </div>
           <div>
             <label className="label">Rol</label>
-            <select className="select" value={form.rol} onChange={(e) => setForm((f) => ({ ...f, rol: e.target.value }))}>
-              {rolesOpts.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
+            <select
+              className="select"
+              value={form.rol}
+              onChange={(ev) => {
+                const rol = ev.target.value;
+                setForm((f) => ({
+                  ...f,
+                  rol,
+                  obra_id: rol === "administrador" ? "" : f.obra_id,
+                }));
+              }}
+            >
+              <option value="inspector_sst">Inspector SST</option>
+              <option value="encargado">Encargado</option>
+              <option value="administrador">Administrador</option>
             </select>
             {formErr.rol && <p className="text-xs text-red-600 mt-1">{formErr.rol}</p>}
           </div>
-          <div>
-            <label className="label">Obra</label>
-            <select className="select" value={form.obra} onChange={(e) => setForm((f) => ({ ...f, obra: e.target.value }))}>
-              {obrasOpts.map((o) => (
-                <option key={o} value={o}>{o}</option>
-              ))}
-            </select>
-            {formErr.obra && <p className="text-xs text-red-600 mt-1">{formErr.obra}</p>}
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">Estado</label>
-            <select className="select" value={form.estado} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
-              <option value="Activo">Activo</option>
-              <option value="Inactivo">Inactivo</option>
-            </select>
-          </div>
+          {form.rol !== "administrador" && (
+            <div>
+              <label className="label">Obra</label>
+              <select
+                className="select"
+                value={form.obra_id}
+                onChange={(ev) => setForm((f) => ({ ...f, obra_id: ev.target.value }))}
+              >
+                <option value="">Seleccionar obra</option>
+                {obrasParaSelect.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.nombre}
+                  </option>
+                ))}
+              </select>
+              {formErr.obra_id && <p className="text-xs text-red-600 mt-1">{formErr.obra_id}</p>}
+            </div>
+          )}
         </form>
       </Modal>
     </>
