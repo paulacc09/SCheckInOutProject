@@ -1,23 +1,25 @@
-/**
- * Configuración del sistema (mock en memoria).
- * TODO: reemplazar con GET /api/config y PUT /api/config
- */
-import { store } from "./dataStore.js";
-import { delay, ok } from "./serviceUtils.js";
-
-function clone() {
-  return JSON.parse(JSON.stringify(store.config));
-}
+import api from "../api/axios";
 
 export async function getConfig() {
-  await delay();
-  return ok(clone());
+  try {
+    const { data } = await api.get("/configuracion");
+    if (data?.ok === false) {
+      return { ok: false, message: data.message || "Error" };
+    }
+    return { ok: true, data: data.data };
+  } catch (err) {
+    return { ok: false, message: err.response?.data?.message || "Error" };
+  }
 }
 
-export async function saveConfig(patch) {
-  await delay();
-  if (patch.empresa) Object.assign(store.config.empresa, patch.empresa);
-  if (patch.horario) Object.assign(store.config.horario, patch.horario);
-  if (patch.notificaciones) Object.assign(store.config.notificaciones, patch.notificaciones);
-  return ok(clone());
+export async function saveConfig(form) {
+  try {
+    const { data } = await api.put("/configuracion", form);
+    if (data?.ok === false) {
+      return { ok: false, message: data.message || "Error" };
+    }
+    return { ok: true, data: data.data };
+  } catch (err) {
+    return { ok: false, message: err.response?.data?.message || "Error" };
+  }
 }
