@@ -1,10 +1,14 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Loader2, Pencil, AlertCircle } from "lucide-react";
 import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import EmptyState from "../../components/EmptyState";
 import CamaraFacial from "../../components/CamaraFacial";
+import PaginationBar from "../../components/PaginationBar";
+import { paginate } from "../../services/pagination";
+
+const PAGE_SIZE = 10;
 
 export default function Personal() {
   const nombreApellidoRegex = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]{2,50}$/;
@@ -19,6 +23,7 @@ export default function Personal() {
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState("");
+  const [page, setPage] = useState(1);
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -182,6 +187,15 @@ export default function Personal() {
     return okQ && okEstado;
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [q, estado]);
+
+  const { items: filas, totalPages, page: safePage } = useMemo(
+    () => paginate(filtrados, page, PAGE_SIZE),
+    [filtrados, page, PAGE_SIZE]
+  );
+
   return (
     <>
       <TopBar
@@ -213,36 +227,39 @@ export default function Personal() {
             }/>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>ID</th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Obra</th><th>Estado</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtrados.map((t) => (
-                  <tr key={t.id}>
-                    <td className="text-slate-500">{t.id}</td>
-                    <td className="font-medium text-slate-800">{t.nombre} {t.apellido}</td>
-                    <td className="font-mono text-xs">{t.cedula}</td>
-                    <td className="text-slate-600">{t.subcargo || t.subcargo_nombre || t.cargo || "—"}</td>
-                    <td className="text-slate-600">{t.obra_nombre || "—"}</td>
-                    <td>
-                      <span className={t.estado === "activo" ? "badge badge-success" : "badge badge-muted"}>
-                        {t.estado}
-                      </span>
-                    </td>
-                    <td>
-                      <button onClick={() => abrirEditar(t)} className="p-1.5 rounded-lg hover:bg-slate-100" title="Editar">
-                        <Pencil className="w-4 h-4 text-slate-600" />
-                      </button>
-                    </td>
+          <>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Obra</th><th>Estado</th><th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filas.map((t) => (
+                    <tr key={t.id}>
+                      <td className="text-slate-500">{t.id}</td>
+                      <td className="font-medium text-slate-800">{t.nombre} {t.apellido}</td>
+                      <td className="font-mono text-xs">{t.cedula}</td>
+                      <td className="text-slate-600">{t.subcargo || t.subcargo_nombre || t.cargo || "—"}</td>
+                      <td className="text-slate-600">{t.obra_nombre || "—"}</td>
+                      <td>
+                        <span className={t.estado === "activo" ? "badge badge-success" : "badge badge-muted"}>
+                          {t.estado}
+                        </span>
+                      </td>
+                      <td>
+                        <button onClick={() => abrirEditar(t)} className="p-1.5 rounded-lg hover:bg-slate-100" title="Editar">
+                          <Pencil className="w-4 h-4 text-slate-600" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />
+          </>
         )}
       </div>
 
