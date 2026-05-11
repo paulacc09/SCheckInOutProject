@@ -241,24 +241,34 @@ export default function Roles() {
               <table className="table">
                 <thead>
                   <tr>
+                    <th>ID</th>
                     <th>Nombre</th>
-                    <th>Apellido</th>
-                    <th>Email</th>
+                    <th>Correo</th>
                     <th>Rol</th>
                     <th>Obra</th>
+                    <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id}>
-                      <td>{r.nombre ?? "—"}</td>
-                      <td>{r.apellido ?? "—"}</td>
+                      <td>{r.id}</td>
+                      <td>
+                        {r.nombre ?? ""} {r.apellido ?? ""}
+                      </td>
                       <td>{r.email ?? "—"}</td>
                       <td>
                         <span className={`badge ${badgeRol(r.rol)}`}>{etiquetaRol(r.rol)}</span>
                       </td>
                       <td>{obras.find((o) => String(o.id) === String(r.obra_id))?.nombre ?? "—"}</td>
+                      <td>
+                        <span
+                          className={`badge ${r.estado === "activo" ? "bg-[#dcfce7] text-[#16a34a]" : "bg-[#fee2e2] text-[#dc2626]"}`}
+                        >
+                          {r.estado ?? "—"}
+                        </span>
+                      </td>
                       <td className="flex gap-2">
                         <button
                           type="button"
