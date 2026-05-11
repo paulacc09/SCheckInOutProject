@@ -1,141 +1,154 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil, Search, Trash2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
+import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
-import Modal from "../../components/Modal";
 import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
 import { paginate } from "../../services/pagination";
-import * as asistenciasService from "../../services/asistenciasService";
-import { getNombresObras } from "../../services/obrasService";
-import { listTrabajadoresParaSelect } from "../../services/personalService";
-import { store } from "../../services/dataStore";
 
 const PAGE_SIZE = 10;
 
-function badgeClass(estado) {
-  if (estado === "Salida") return "bg-[#fee2e2] text-[#dc2626]";
-  if (estado === "Presente") return "bg-[#dcfce7] text-[#16a34a]";
+function badgeTipo(tipo) {
+  if (tipo === "ingreso") return "bg-[#dbeafe] text-[#1d4ed8]";
   return "bg-[#f3f4f6] text-[#6b7280]";
+}
+
+function badgeEstado(estado) {
+  const e = String(estado || "").toLowerCase();
+  if (e === "valido") return "bg-[#dcfce7] text-[#16a34a]";
+  return "bg-[#fee2e2] text-[#dc2626]";
 }
 
 export default function Asistencias() {
   const [q, setQ] = useState("");
-  const [obra, setObra] = useState("");
   const [fecha, setFecha] = useState("");
+  const [obraId, setObraId] = useState("");
   const [tipo, setTipo] = useState("");
-  const [estado, setEstado] = useState("");
-  const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
-  const [obrasOpts, setObrasOpts] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [obras, setObras] = useState([]);
+  const [resumen, setResumen] = useState({});
+  const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(null);
 
   const cargar = useCallback(async () => {
-    const res = await asistenciasService.getAll({ search: q, obra, fecha, tipo, estado });
-    if (!res.ok) return setFlash({ type: "error", message: res.message });
-    setRows(res.data);
-  }, [q, obra, fecha, tipo, estado]);
+    setLoading(true);
+    setFlash(null);
+    try {
+      const { data } = await api.get("/asistencia/registros", {
+        params: { obra_id: obraId, fecha, tipo, search: q },
+      });
+      setRows(Array.isArray(data) ? data : data.data ?? data);
+    } catch (e) {
+      setFlash({
+        type: "error",
+        message: e.response?.data?.message || "No se pudieron cargar los registros",
+      });
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [q, fecha, obraId, tipo]);
 
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
+  const cargarResumen = useCallback(async () => {
+    try {
+      const f = fecha || new Date().toISOString().slice(0, 10);
+      const { data } = await api.get(`/asistencia/resumen?fecha=${encodeURIComponent(f)}`);
+      setResumen(data.data ?? data);
+    } catch {
+    }
+  }, [fecha]);
 
   useEffect(() => {
     (async () => {
-      const r = await getNombresObras();
-      if (r.ok) setObrasOpts(r.data);
+      try {
+        const { data } = await api.get("/obras");
+        setObras(Array.isArray(data) ? data : data.data ?? []);
+      } catch {
+        setObras([]);
+      }
     })();
   }, []);
 
   useEffect(() => {
-    setPage(1);
-  }, [q, obra, fecha, tipo, estado]);
+    cargar();
+    cargarResumen();
+  }, [cargar, cargarResumen]);
 
-  const activosEmpresa = useMemo(
-    () => store.personal.filter((p) => String(p.estado).toLowerCase() === "activo").length,
-    []
-  );
-  const asistenciaDia = useMemo(() => {
-    const presentes = rows.filter((r) => r.estado === "Presente").length;
-    return activosEmpresa ? Math.round((presentes / activosEmpresa) * 100) : 0;
-  }, [rows, activosEmpresa]);
+  useEffect(() => {
+    setPage(1);
+  }, [q, fecha, obraId, tipo]);
+
   const { items: pageRows, totalPages, page: safePage } = useMemo(
     () => paginate(rows, page, PAGE_SIZE),
     [rows, page]
   );
 
-  const trabajadores = listTrabajadoresParaSelect();
-  const openEdit = async (row) => {
-    const res = await asistenciasService.getById(row.id);
-    if (!res.ok) return setFlash({ type: "error", message: res.message });
-    setForm({ ...res.data });
-    setModalOpen(true);
-  };
-
-  const save = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    const res = await asistenciasService.update(form.id, form);
-    setSaving(false);
-    if (!res.ok) return setFlash({ type: "error", message: res.message });
-    setModalOpen(false);
-    setFlash({ type: "ok", message: "Registro actualizado" });
-    await cargar();
-  };
-
-  const removeRow = async (row) => {
-    if (!window.confirm("¿Eliminar este registro de asistencia?")) return;
-    const res = await asistenciasService.remove(row.id);
-    if (!res.ok) return setFlash({ type: "error", message: res.message });
-    setFlash({ type: "ok", message: "Registro eliminado" });
-    await cargar();
-  };
-
   return (
     <>
       <TopBar title="Gestión Asistencias" />
       <div className="p-6 space-y-4 bg-[#f5f6fa] min-h-full">
-        {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
+        {flash && (
+          <FlashBanner
+            type={flash.type === "error" ? "error" : "ok"}
+            message={flash.message}
+            onClose={() => setFlash(null)}
+          />
+        )}
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="rounded-xl bg-white border p-5 shadow-sm">
-            <div className="text-3xl font-bold text-slate-800">{asistenciaDia}%</div>
-            <div className="text-sm text-slate-500">Asistencia del día</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="card card-body">
+            <p className="text-sm text-slate-500">Asistentes</p>
+            <p className="text-2xl font-bold text-[#1e3a6e]">{resumen.asistentes ?? 0}</p>
           </div>
-          <div className="rounded-xl bg-white border p-5 shadow-sm">
-            <div className="text-3xl font-bold text-slate-800">{activosEmpresa}</div>
-            <div className="text-sm text-slate-500">Activos (empresa)</div>
+          <div className="card card-body">
+            <p className="text-sm text-slate-500">% Asistencia</p>
+            <p className="text-2xl font-bold text-[#1e3a6e]">
+              {resumen.porcentaje_asistencia ?? 0}
+              <span className="text-lg font-semibold text-slate-600">%</span>
+            </p>
           </div>
         </div>
 
-        <div className="card card-body grid lg:grid-cols-5 gap-3">
-          <div className="relative lg:col-span-2">
+        <div className="card card-body flex flex-col lg:flex-row flex-wrap gap-3">
+          <div className="relative flex-1 min-w-[12rem]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar" />
+            <input
+              className="input pl-9"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar…"
+            />
           </div>
-          <input type="text" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} placeholder="Fecha (dd/mm/yyyy)" />
-          <select className="select" value={obra} onChange={(e) => setObra(e.target.value)}>
-            <option value="">Obra</option>
-            {obrasOpts.map((o) => <option key={o} value={o}>{o}</option>)}
+          <input
+            type="date"
+            className="input sm:w-44"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+          />
+          <select className="select sm:min-w-[12rem]" value={obraId} onChange={(e) => setObraId(e.target.value)}>
+            <option value="">Todas las obras</option>
+            {obras.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.nombre}
+              </option>
+            ))}
           </select>
-          <select className="select" value={tipo} onChange={(e) => setTipo(e.target.value)}>
-            <option value="">Tipo registro</option>
-            <option value="Normal">Normal</option>
-            <option value="Permiso">Permiso</option>
-            <option value="Incapacidad">Incapacidad</option>
-          </select>
-          <select className="select" value={estado} onChange={(e) => setEstado(e.target.value)}>
-            <option value="">Estado</option>
-            <option value="Salida">Salida</option>
-            <option value="Presente">Presente</option>
-            <option value="Ausente">Ausente</option>
+          <select className="select sm:w-40" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+            <option value="">Tipo</option>
+            <option value="ingreso">ingreso</option>
+            <option value="salida">salida</option>
           </select>
         </div>
 
-        {rows.length === 0 ? (
-          <div className="card card-body text-center text-slate-500">No hay asistencias que coincidan con los filtros seleccionados</div>
+        {loading ? (
+          <div className="card card-body flex justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-[#1e3a6e]" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="card card-body text-center text-slate-500">
+            No hay registros que coincidan con los filtros.
+          </div>
         ) : (
           <>
             <div className="table-wrap">
@@ -143,99 +156,41 @@ export default function Asistencias() {
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Nombre</th>
+                    <th>Trabajador</th>
+                    <th>Cédula</th>
                     <th>Obra</th>
                     <th>Fecha</th>
-                    <th>Ingreso</th>
-                    <th>Salida</th>
+                    <th>Hora</th>
+                    <th>Tipo</th>
                     <th>Estado</th>
-                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pageRows.map((r) => (
                     <tr key={r.id}>
                       <td>{r.id}</td>
-                      <td>{r.nombre}</td>
-                      <td>{r.obra}</td>
-                      <td>{r.fecha}</td>
-                      <td>{r.ingreso || "--"}</td>
-                      <td>{r.salida || "--"}</td>
-                      <td><span className={`badge ${badgeClass(r.estado)}`}>{r.estado}</span></td>
-                      <td className="flex gap-2">
-                        <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => openEdit(r)}><Pencil className="w-4 h-4 text-slate-600" /></button>
-                        <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => removeRow(r)}><Trash2 className="w-4 h-4 text-red-600" /></button>
+                      <td>{r.trabajador ?? "—"}</td>
+                      <td className="font-mono text-sm">{r.cedula ?? "—"}</td>
+                      <td>{r.obra_nombre ?? "—"}</td>
+                      <td>{String(r.fecha).slice(0, 10)}</td>
+                      <td>{String(r.timestamp).slice(11, 16)}</td>
+                      <td>
+                        <span className={`badge ${badgeTipo(r.tipo)}`}>{r.tipo ?? "—"}</span>
+                      </td>
+                      <td>
+                        <span className={`badge ${badgeEstado(r.estado)}`}>{r.estado ?? "—"}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />
+            {!loading && rows.length > 0 && (
+              <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />
+            )}
           </>
         )}
       </div>
-
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Editar asistencia"
-        footer={
-          <>
-            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancelar</button>
-            <button type="button" className="btn text-white" style={{ background: "#1e3a6e" }} disabled={saving} onClick={save}>Guardar</button>
-          </>
-        }
-      >
-        {form && (
-          <form className="space-y-3" onSubmit={save}>
-            <div>
-              <label className="label">Trabajador</label>
-              <div className="input bg-slate-50">
-                {trabajadores.find((t) => t.id === form.trabajadorId)?.nombre || form.nombre}
-              </div>
-            </div>
-            <div>
-              <label className="label">Obra</label>
-              <select className="select" value={form.obra} onChange={(e) => setForm((f) => ({ ...f, obra: e.target.value }))}>
-                {obrasOpts.map((o) => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Fecha</label>
-              <input type="text" className="input" value={form.fecha} onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))} />
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div>
-                <label className="label">Hora Ingreso</label>
-                <input type="time" className="input" value={form.ingreso || ""} onChange={(e) => setForm((f) => ({ ...f, ingreso: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Hora Salida</label>
-                <input type="time" className="input" value={form.salida || ""} onChange={(e) => setForm((f) => ({ ...f, salida: e.target.value }))} />
-              </div>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div>
-                <label className="label">Tipo</label>
-                <select className="select" value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}>
-                  <option value="Normal">Normal</option>
-                  <option value="Permiso">Permiso</option>
-                  <option value="Incapacidad">Incapacidad</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Estado</label>
-                <select className="select" value={form.estado} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
-                  <option value="Presente">Presente</option>
-                  <option value="Salida">Salida</option>
-                  <option value="Ausente">Ausente</option>
-                </select>
-              </div>
-            </div>
-          </form>
-        )}
-      </Modal>
     </>
   );
 }
