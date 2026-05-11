@@ -162,21 +162,7 @@ const googleCallback = async (req, res) => {
     let usuario = rows[0];
 
     if (!usuario) {
-      const [result] = await pool.execute(
-        `INSERT INTO usuarios (nombre, apellido, email, password_hash, rol, empresa_id)
-         VALUES (?, ?, ?, 'GOOGLE_AUTH', 'administrador', NULL)`,
-        [nombre, apellido, email]
-      );
-
-      [rows] = await pool.execute(
-        `SELECT u.*, e.nombre AS empresa_nombre
-         FROM usuarios u
-         LEFT JOIN empresas e ON e.id = u.empresa_id
-         WHERE u.id = ?
-         LIMIT 1`,
-        [result.insertId]
-      );
-      usuario = rows[0];
+      return res.redirect(`${process.env.FRONTEND_URL}/registro?error=google_not_found`);
     }
 
     const token = jwt.sign(
