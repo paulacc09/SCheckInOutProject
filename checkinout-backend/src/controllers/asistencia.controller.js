@@ -296,6 +296,44 @@ const resumenAsistencia = async (req, res) => {
   }
 };
 
+const listarResumenPorTrabajador = async (req, res) => {
+  const { fecha, obra_id, search } = req.query;
+  try {
+    let query = `
+      SELECT t.id AS trabajador_id,
+             CONCAT(t.nombre,' ',t.apellido) AS nombre,
+             o.nombre AS obra,
+             MAX(CASE WHEN r.tipo='ingreso' THEN TIME(r.timestamp) END) AS hora_ingreso,
+             MAX(CASE WHEN r.tipo='salida' THEN TIME(r.timestamp) END) AS hora_salida,
+             DATE(MAX(r.timestamp)) AS fecha,
+             CASE WHEN MAX(CASE WHEN r.tipo='salida' THEN 1 ELSE 0 END)=1 THEN 'Salida' WHEN MAX(CASE WHEN r.tipo='ingreso' THEN 1 ELSE 0 END)=1 THEN 'Activo' ELSE 'Ausente' END AS estado
+      FROM registros_asistencia r
+      JOIN trabajadores t ON t.id=r.trabajador_id
+      JOIN obras o ON o.id=r.obra_id
+      WHERE o.empresa_id=?
+    `;
+    const params = [req.usuario.empresa_id];
+    if (fecha) {
+      query += ` AND DATE(r.timestamp)=?`;
+      params.push(fecha);
+    }
+    if (obra_id) {
+      query += ` AND r.obra_id=?`;
+      params.push(obra_id);
+    }
+    if (search) {
+      const like = `%${search}%`;
+      query += ` AND (CONCAT(t.nombre,' ',t.apellido) LIKE ? OR t.cedula LIKE ?)`;
+      params.push(like, like);
+    }
+    query += ` GROUP BY t.id, r.obra_id, DATE(r.timestamp) ORDER BY fecha DESC`;
+    const [rows] = await db.query(query, params);
+    return success(res, rows);
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
 module.exports = {
   abrirJornada,
   cerrarJornada,
@@ -303,4 +341,5 @@ module.exports = {
   listarJornadas,
   listarRegistros,
   resumenAsistencia,
+  listarResumenPorTrabajador,
 };

@@ -6,6 +6,7 @@ const {
   listarJornadas,
   listarRegistros,
   resumenAsistencia,
+  listarResumenPorTrabajador,
 } = require('../controllers/asistencia.controller');
 const { verificarToken } = require('../utils/middlewares/auth.middleware');
 
@@ -17,5 +18,6 @@ router.post('/registrar', registrarAsistencia);
 router.get('/jornadas', listarJornadas);
 router.get('/resumen', resumenAsistencia);
 router.get('/registros', listarRegistros);
+router.get('/resumen-trabajadores', listarResumenPorTrabajador);
 
 module.exports = router;
