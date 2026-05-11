@@ -10,9 +10,15 @@ export default function Personal() {
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState("");
+  const [cargo, setCargo] = useState("");
+  const [subcargos, setSubcargos] = useState([]);
 
   useEffect(() => {
     let alive = true;
+
+    api.get("/subcargos").then(({ data }) => {
+      setSubcargos(data.subcargos || data.data || data || []);
+    }).catch(() => setSubcargos([]));
 
     const cargar = async () => {
       setLoading(true);
@@ -47,7 +53,9 @@ export default function Personal() {
     const estadoTrabajador = String(t?.estado || "").toLowerCase();
     const okEstado = !estado || estadoTrabajador === estado;
 
-    return okQ && okEstado;
+    const okCargo = !cargo || (t.subcargo || t.subcargo_nombre || t.cargo || "") === cargo;
+
+    return okQ && okEstado && okCargo;
   });
 
   return (
@@ -69,6 +77,12 @@ export default function Personal() {
             <option value="">Todos los estados</option>
             <option value="activo">activo</option>
             <option value="inactivo">inactivo</option>
+          </select>
+          <select className="select sm:w-44" value={cargo} onChange={(e) => setCargo(e.target.value)}>
+            <option value="">Todos los cargos</option>
+            {subcargos.map((s) => (
+              <option key={s.id} value={s.nombre}>{s.nombre}</option>
+            ))}
           </select>
         </div>
 
