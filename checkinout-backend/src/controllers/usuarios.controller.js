@@ -53,7 +53,7 @@ const crear = async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [empresaId, nombre, apellido, email, password_hash, rol, obraIdSanitized]
     );
-    await enviarCorreoBienvenida({ email, nombre, apellido, passwordTemporal });
+    enviarCorreoBienvenida({ email, nombre, apellido, passwordTemporal }).catch(console.error);
     return success(res, { id: result.insertId }, 201);
   } catch (err) {
     return error(res, err.message, 500);
