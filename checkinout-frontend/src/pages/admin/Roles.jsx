@@ -13,6 +13,9 @@ const initialForm = () => ({
   nombre: "",
   apellido: "",
   email: "",
+  cedula: "",
+  tipo_documento: "CC",
+  telefono: "",
   rol: "inspector_sst",
   obra_id: "",
   estado: "activo",
@@ -111,6 +114,9 @@ export default function Roles() {
       nombre: u.nombre || "",
       apellido: u.apellido || "",
       email: u.email || "",
+      cedula: u.cedula || "",
+      tipo_documento: u.tipo_documento || "CC",
+      telefono: u.telefono || "",
       rol: u.rol || "inspector_sst",
       obra_id: u.obra_id != null ? String(u.obra_id) : "",
       estado: u.estado || "activo",
@@ -146,6 +152,9 @@ export default function Roles() {
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim(),
           email: form.email.trim(),
+          cedula: form.cedula.trim(),
+          tipo_documento: form.tipo_documento,
+          telefono: form.telefono.trim(),
           rol: form.rol,
           obra_id: obraPayload,
         });
@@ -154,6 +163,9 @@ export default function Roles() {
         const body = {
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim(),
+          cedula: form.cedula.trim(),
+          tipo_documento: form.tipo_documento,
+          telefono: form.telefono.trim(),
           rol: form.rol,
           obra_id: obraPayload,
           estado: form.estado,
@@ -346,6 +358,35 @@ export default function Roles() {
               onChange={(ev) => setForm((f) => ({ ...f, email: ev.target.value }))}
             />
             {formErr.email && <p className="text-xs text-red-600 mt-1">{formErr.email}</p>}
+          </div>
+          <div>
+            <label className="label">Tipo documento</label>
+            <select
+              className="select"
+              value={form.tipo_documento}
+              onChange={(ev) => setForm((f) => ({ ...f, tipo_documento: ev.target.value }))}
+            >
+              <option value="CC">CC</option>
+              <option value="CE">CE</option>
+              <option value="TI">TI</option>
+              <option value="PP">PP (pasaporte)</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Cédula / N° documento</label>
+            <input
+              className="input"
+              value={form.cedula}
+              onChange={(ev) => setForm((f) => ({ ...f, cedula: ev.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="label">Teléfono</label>
+            <input
+              className="input"
+              value={form.telefono}
+              onChange={(ev) => setForm((f) => ({ ...f, telefono: ev.target.value }))}
+            />
           </div>
           <div>
             <label className="label">Rol</label>

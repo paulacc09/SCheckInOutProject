@@ -7,7 +7,7 @@ const { enviarCorreoBienvenida } = require('../utils/emails');
 const listar = async (req, res) => {
   try {
     let query = `
-      SELECT id, nombre, apellido, email, rol, obra_id, estado
+      SELECT id, nombre, apellido, email, rol, obra_id, estado, cedula, tipo_documento, telefono
       FROM usuarios
       WHERE empresa_id = ?
     `;
@@ -24,7 +24,7 @@ const listar = async (req, res) => {
 };
 
 const crear = async (req, res) => {
-  const { nombre, apellido, email, rol, obra_id } = req.body;
+  const { nombre, apellido, email, rol, obra_id, cedula, tipo_documento, telefono } = req.body;
   if (!nombre || !apellido || !email || !rol) {
     return error(res, 'nombre, apellido, email y rol son obligatorios', 400);
   }
@@ -49,9 +49,9 @@ const crear = async (req, res) => {
     const passwordTemporal = crypto.randomBytes(6).toString('hex');
     const password_hash = await bcrypt.hash(passwordTemporal, 10);
     const [result] = await db.query(
-      `INSERT INTO usuarios (empresa_id, nombre, apellido, email, password_hash, rol, obra_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [empresaId, nombre, apellido, email, password_hash, rol, obraIdSanitized]
+      `INSERT INTO usuarios (empresa_id, nombre, apellido, email, password_hash, rol, obra_id, cedula, tipo_documento, telefono)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [empresaId, nombre, apellido, email, password_hash, rol, obraIdSanitized, cedula || null, tipo_documento || 'CC', telefono || null]
     );
     enviarCorreoBienvenida({ email, nombre, apellido, passwordTemporal }).catch(console.error);
     return success(res, { id: result.insertId }, 201);
@@ -61,7 +61,7 @@ const crear = async (req, res) => {
 };
 
 const actualizar = async (req, res) => {
-  const { nombre, apellido, rol, obra_id, password, estado } = req.body;
+  const { nombre, apellido, rol, obra_id, password, estado, cedula, tipo_documento, telefono } = req.body;
   const empresaId = req.usuario.empresa_id;
   const id = req.params.id;
   try {
@@ -81,17 +81,17 @@ const actualizar = async (req, res) => {
       const password_hash = await bcrypt.hash(pwd, 10);
       const [result] = await db.query(
         `UPDATE usuarios
-         SET nombre = ?, apellido = ?, rol = ?, obra_id = ?, estado = ?, password_hash = ?
+         SET nombre = ?, apellido = ?, rol = ?, obra_id = ?, estado = ?, cedula = ?, tipo_documento = ?, telefono = ?, password_hash = ?
          WHERE id = ? AND empresa_id = ?`,
-        [nombre, apellido, rol, obraIdSanitized, estado, password_hash, id, empresaId]
+        [nombre, apellido, rol, obraIdSanitized, estado, cedula || null, tipo_documento || 'CC', telefono || null, password_hash, id, empresaId]
       );
       if (!result.affectedRows) return error(res, 'Usuario no encontrado', 404);
     } else {
       const [result] = await db.query(
         `UPDATE usuarios
-         SET nombre = ?, apellido = ?, rol = ?, obra_id = ?, estado = ?
+         SET nombre = ?, apellido = ?, rol = ?, obra_id = ?, estado = ?, cedula = ?, tipo_documento = ?, telefono = ?
          WHERE id = ? AND empresa_id = ?`,
-        [nombre, apellido, rol, obraIdSanitized, estado, id, empresaId]
+        [nombre, apellido, rol, obraIdSanitized, estado, cedula || null, tipo_documento || 'CC', telefono || null, id, empresaId]
       );
       if (!result.affectedRows) return error(res, 'Usuario no encontrado', 404);
     }
