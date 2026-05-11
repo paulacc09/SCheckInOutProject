@@ -24,7 +24,7 @@ export default function Asistencia() {
     const { data: body } = await api.get("/asistencia/registros", {
       params: { obra_id: obraId, fecha: hoy() },
     });
-    const raw = body?.obras ?? body?.data ?? body;
+    const raw = body?.registros ?? body?.data ?? body;
     const list = Array.isArray(raw) ? raw : [];
     setRegistros(list);
   };

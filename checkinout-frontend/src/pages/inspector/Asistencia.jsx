@@ -24,7 +24,8 @@ export default function Asistencia() {
     const { data: body } = await api.get("/asistencia/registros", {
       params: { obra_id: obraId, fecha: hoy() },
     });
-    const raw = body?.obras ?? body?.data ?? body;
+    console.log("REGISTROS RESPONSE:", JSON.stringify(body));
+    const raw = body?.registros ?? body?.data ?? body;
     const list = Array.isArray(raw) ? raw : [];
     setRegistros(list);
   };
@@ -130,6 +131,7 @@ export default function Asistencia() {
 
     setMarcando(true);
     try {
+      console.log("MARCAJE payload:", { cedula: cedula.trim(), tipo: tipoMarcaje, obra_id: obra?.id, obra_nombre: obra?.nombre });
       const { data: body } = await api.post("/asistencia/registrar", {
         cedula: cedula.trim(),
         tipo: tipoMarcaje,
