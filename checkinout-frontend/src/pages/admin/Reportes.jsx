@@ -7,7 +7,7 @@ import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
 import { paginate } from "../../services/pagination";
 import * as reportesService from "../../services/reportesService";
-import { getNombresObras } from "../../services/obrasService";
+import api from "../../api/axios";
 
 const PAGE_SIZE_GENERATED = 10;
 const PAGE_SIZE_DEFAULT = 2;
@@ -35,8 +35,8 @@ export default function Reportes() {
 
   useEffect(() => {
     (async () => {
-      const r = await getNombresObras();
-      if (r.ok) setObrasOpts(r.data);
+      const { data } = await api.get("/obras");
+      setObrasOpts(Array.isArray(data) ? data : data.data ?? []);
     })();
   }, []);
 
