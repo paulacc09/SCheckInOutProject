@@ -207,6 +207,45 @@ export async function update(id, datos) {
   }
 }
 
+/**
+ * Sube un archivo a Cloudinary (preset sin firmar) desde el navegador.
+ */
+export async function subirArchivoCloudinary(file) {
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  if (!cloudName || !uploadPreset) {
+    return { ok: false, message: "Faltan VITE_CLOUDINARY_CLOUD_NAME o VITE_CLOUDINARY_UPLOAD_PRESET" };
+  }
+  if (!file || !(file instanceof File)) {
+    return { ok: false, message: "Archivo no válido" };
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+
+  try {
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg =
+        (typeof data.error === "object" && data.error?.message) ||
+        (typeof data.error === "string" ? data.error : null) ||
+        `Error al subir (${res.status})`;
+      return { ok: false, message: msg };
+    }
+    if (!data.secure_url) {
+      return { ok: false, message: "Respuesta inválida de Cloudinary" };
+    }
+    return { ok: true, data: { url: data.secure_url } };
+  } catch (err) {
+    return { ok: false, message: err.message || "Error de red al subir el archivo" };
+  }
+}
+
 export function getTiposOpciones() {
   return ["Examen médico", "Curso de alturas"];
 }

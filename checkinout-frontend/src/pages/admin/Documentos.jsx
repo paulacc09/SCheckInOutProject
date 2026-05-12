@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Pencil, Search } from "lucide-react";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
@@ -58,6 +58,8 @@ export default function Documentos() {
     vencimiento: "",
   });
   const [uploadFormErr, setUploadFormErr] = useState({});
+  const [uploadFile, setUploadFile] = useState(null);
+  const uploadFileInputRef = useRef(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -124,6 +126,8 @@ export default function Documentos() {
   const abrirSubir = () => {
     setUploadModalOpen(true);
     setUploadFormErr({});
+    setUploadFile(null);
+    if (uploadFileInputRef.current) uploadFileInputRef.current.value = "";
     setUploadForm({ trabajador_id: "", tipo: "", emision: "", vencimiento: "" });
   };
 
@@ -141,11 +145,24 @@ export default function Documentos() {
     ev.preventDefault();
     if (!validarSubir()) return;
     setSaving(true);
+
+    let archivo_url = null;
+    if (uploadFile) {
+      const up = await documentosService.subirArchivoCloudinary(uploadFile);
+      if (!up.ok) {
+        setSaving(false);
+        setFlash({ type: "error", message: up.message });
+        return;
+      }
+      archivo_url = up.data.url;
+    }
+
     const res = await documentosService.create({
       trabajador_id: Number(uploadForm.trabajador_id),
       tipo: uploadForm.tipo.trim(),
       fecha_expedicion: uploadForm.emision,
       fecha_vencimiento: uploadForm.vencimiento,
+      archivo_url,
     });
     setSaving(false);
     if (!res.ok) {
@@ -431,6 +448,16 @@ export default function Documentos() {
               onChange={(e) => setUploadForm((f) => ({ ...f, vencimiento: e.target.value }))}
             />
             {uploadFormErr.vencimiento && <p className="text-xs text-red-600 mt-1">{uploadFormErr.vencimiento}</p>}
+          </div>
+          <div>
+            <label className="label">Archivo (PDF o imagen)</label>
+            <input
+              ref={uploadFileInputRef}
+              type="file"
+              accept=".pdf,image/*"
+              className="input w-full text-sm"
+              onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+            />
           </div>
         </form>
       </Modal>
