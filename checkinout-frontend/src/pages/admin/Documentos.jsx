@@ -243,13 +243,6 @@ export default function Documentos() {
     await cargar();
   };
 
-  function getVerUrl(url) {
-    if (!url) return url;
-    return /\.pdf$/i.test(url)
-      ? "https://docs.google.com/viewer?url=" + encodeURIComponent(url) + "&embedded=false"
-      : url;
-  }
-
   return (
     <>
       <TopBar
@@ -423,12 +416,13 @@ export default function Documentos() {
             {editing?.archivo_url ? (
               <div className="flex flex-col gap-2 text-sm">
                 <a
-                  href={getVerUrl(editing.archivo_url)}
+                  href={editing.archivo_url}
+                  download
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#1565C0] underline font-medium"
                 >
-                  Ver archivo actual
+                  Descargar archivo actual
                 </a>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
