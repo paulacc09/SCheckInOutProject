@@ -243,6 +243,11 @@ export default function Documentos() {
     await cargar();
   };
 
+  function normalizarUrlDoc(url) {
+    if (!url) return url;
+    return /\.pdf$/i.test(url) ? url.replace("/image/upload/", "/raw/upload/") : url;
+  }
+
   return (
     <>
       <TopBar
@@ -416,7 +421,7 @@ export default function Documentos() {
             {editing?.archivo_url ? (
               <div className="flex flex-col gap-2 text-sm">
                 <a
-                  href={editing.archivo_url}
+                  href={normalizarUrlDoc(editing.archivo_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#1565C0] underline font-medium"
