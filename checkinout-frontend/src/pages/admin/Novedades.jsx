@@ -4,7 +4,7 @@ import TopBar from "../../components/TopBar";
 import FlashBanner from "../../components/FlashBanner";
 import api from "../../api/axios";
 
-const TAB_KEYS = ["Pendientes", "Novedades", "Todas"];
+const TAB_KEYS = ["Pendientes", "Novedades", "Traspasos", "Todas"];
 
 const TIPO_OPCIONES = [
   { value: "", label: "Todos" },
@@ -60,6 +60,7 @@ export default function NovedadesAdmin() {
   }, [cargar]);
 
   const filtradasPorTab = useMemo(() => {
+    if (tab === "Traspasos") return [];
     if (tab === "Pendientes") {
       return rows.filter((n) => String(n.estado).toLowerCase() === "pendiente");
     }
@@ -161,9 +162,15 @@ export default function NovedadesAdmin() {
             <Loader2 className="w-6 h-6 animate-spin text-[#1e2a4a]" />
           </div>
         ) : displayRows.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-600 shadow-sm">
-            No hay novedades para mostrar.
-          </div>
+          tab === "Traspasos" ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-600 shadow-sm">
+              Los traspasos estarán disponibles próximamente.
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-600 shadow-sm">
+              No hay novedades para mostrar.
+            </div>
+          )
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {displayRows.map((n) => {
