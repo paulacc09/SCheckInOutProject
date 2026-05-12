@@ -17,10 +17,13 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem("checkinout_token");
-      localStorage.removeItem("checkinout_user");
-      if (!window.location.pathname.startsWith("/login")) {
-        window.location.href = "/login";
+      const requestUrl = err.config?.url ?? "";
+      if (!requestUrl.includes("/perfil/password")) {
+        localStorage.removeItem("checkinout_token");
+        localStorage.removeItem("checkinout_user");
+        if (!window.location.pathname.startsWith("/login")) {
+          window.location.href = "/login";
+        }
       }
     }
     return Promise.reject(err);
