@@ -133,9 +133,8 @@ export default function Documentos() {
 
   return (
     <>
-      <TopBar />
+      <TopBar title="Gestión de documentos del personal" />
       <div className="p-6 space-y-4">
-        <h2 className="text-2xl font-bold text-slate-800">Gestión de documentos del personal</h2>
         {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 
         <div className="flex gap-4 border-b border-slate-200 flex-wrap">

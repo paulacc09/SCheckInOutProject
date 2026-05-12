@@ -154,18 +154,15 @@ export default function Reportes() {
 
   return (
     <>
-      <TopBar />
+      <TopBar title="Gestión Reportes" />
       <div className="p-6 space-y-4 bg-slate-50/50 min-h-full">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h2 className="text-2xl font-bold text-slate-800">Gestión Reportes</h2>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={btnExport} style={btnExportStyle} onClick={exportCSV}>
-              Exportar CSV
-            </button>
-            <button type="button" className={btnExport} style={btnExportStyle} onClick={exportPDF}>
-              Exportar PDF
-            </button>
-          </div>
+        <div className="flex flex-wrap gap-2 justify-end">
+          <button type="button" className={btnExport} style={btnExportStyle} onClick={exportCSV}>
+            Exportar CSV
+          </button>
+          <button type="button" className={btnExport} style={btnExportStyle} onClick={exportPDF}>
+            Exportar PDF
+          </button>
         </div>
         {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 

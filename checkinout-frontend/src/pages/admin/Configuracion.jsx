@@ -42,9 +42,8 @@ export default function Configuracion() {
 
   return (
     <>
-      <TopBar />
+      <TopBar title="Configuración del Sistema" />
       <div className="p-6 space-y-4">
-        <h2 className="text-2xl font-bold text-slate-800">Configuración del Sistema</h2>
         {flash && <FlashBanner type={flash.type} message={flash.message} onClose={() => setFlash(null)} />}
         <div className="grid lg:grid-cols-2 gap-4">
           <div className="space-y-4">
