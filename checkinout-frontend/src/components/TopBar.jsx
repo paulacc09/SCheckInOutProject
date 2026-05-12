@@ -37,7 +37,7 @@ export default function TopBar({ right, title }) {
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200">
       <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-800">
-        {title || "CHECKINOUT - ADMINISTRATIVO"}
+        {title || ""}
       </div>
       <div className="flex items-center gap-2">
         {right}
