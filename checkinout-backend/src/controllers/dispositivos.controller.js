@@ -1,16 +1,6 @@
 const pool = require('../config/db');
 const { success, error } = require('../utils/response');
 
-async function resolveObraId(empresaId, obraNombre) {
-  if (!obraNombre || obraNombre === 'Sin asignar') return { obra_id: null };
-  const [rows] = await pool.execute(
-    'SELECT id FROM obras WHERE nombre = ? AND empresa_id = ? LIMIT 1',
-    [obraNombre, empresaId]
-  );
-  if (!rows.length) return { error: 'Obra no encontrada para esta empresa' };
-  return { obra_id: rows[0].id };
-}
-
 const getAll = async (req, res) => {
   const empresaId = req.usuario.empresa_id;
   if (empresaId == null) {
@@ -43,8 +33,8 @@ const getAll = async (req, res) => {
       params.push(like, like);
     }
     if (obra) {
-      sql += ' AND o.nombre = ?';
-      params.push(obra);
+      sql += ' AND d.obra_id = ?';
+      params.push(Number(obra));
     }
     if (estado) {
       sql += ' AND d.estado = ?';
@@ -104,11 +94,8 @@ const create = async (req, res) => {
       id = `DEV-${String(c + 1).padStart(3, '0')}`;
     }
 
-    const obraResolved = await resolveObraId(empresaId, obra);
-    if (obraResolved.error) {
-      return error(res, obraResolved.error, 400);
-    }
-    const { obra_id } = obraResolved;
+    const obraStr = obra != null ? String(obra).trim() : '';
+    const obra_id = !obraStr || obraStr === 'Sin asignar' ? null : Number(obraStr);
 
     const pinVal = pin != null && String(pin).trim() !== '' ? String(pin).trim() : null;
 
@@ -152,11 +139,8 @@ const update = async (req, res) => {
   const { nombre, tipo, obra, pin } = req.body;
 
   try {
-    const obraResolved = await resolveObraId(empresaId, obra);
-    if (obraResolved.error) {
-      return error(res, obraResolved.error, 400);
-    }
-    const { obra_id } = obraResolved;
+    const obraStr = obra != null ? String(obra).trim() : '';
+    const obra_id = !obraStr || obraStr === 'Sin asignar' ? null : Number(obraStr);
 
     const pinVal = pin != null && String(pin).trim() !== '' ? String(pin).trim() : null;
 

@@ -124,6 +124,160 @@ const enumerarFechas = (fecha_inicio, fecha_fin) => {
   return fechas;
 };
 
+const rangoMesActual = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const mm = String(m).padStart(2, '0');
+  const last = new Date(y, m, 0).getDate();
+  return {
+    fecha_inicio: `${y}-${mm}-01`,
+    fecha_fin: `${y}-${mm}-${String(last).padStart(2, '0')}`,
+  };
+};
+
+const generarResumen = async (req, res) => {
+  let { fecha_inicio, fecha_fin, obra_id } = req.query;
+  if (!fecha_inicio || !fecha_fin) {
+    const r = rangoMesActual();
+    fecha_inicio = r.fecha_inicio;
+    fecha_fin = r.fecha_fin;
+  }
+
+  const empresa_id = req.usuario.empresa_id;
+  const obraParam =
+    obra_id != null && obra_id !== '' && Number.isFinite(Number(obra_id))
+      ? Number(obra_id)
+      : null;
+
+  try {
+    const fechasRango = enumerarFechas(fecha_inicio, fecha_fin);
+    const diasEnRango = fechasRango.length;
+
+    let queryDaily = `
+      SELECT
+        t.id AS trabajador_id,
+        CONCAT(t.nombre, ' ', t.apellido) AS nombre,
+        o.nombre AS obra_nombre,
+        r.fecha,
+        MIN(CASE WHEN r.tipo = 'ingreso' THEN r.timestamp END) AS hora_entrada,
+        MAX(CASE WHEN r.tipo = 'salida' THEN r.timestamp END) AS hora_salida,
+        CASE
+          WHEN MIN(CASE WHEN r.tipo = 'ingreso' THEN r.timestamp END) IS NOT NULL
+           AND MAX(CASE WHEN r.tipo = 'salida' THEN r.timestamp END) IS NOT NULL
+          THEN TIMESTAMPDIFF(
+            MINUTE,
+            MIN(CASE WHEN r.tipo = 'ingreso' THEN r.timestamp END),
+            MAX(CASE WHEN r.tipo = 'salida' THEN r.timestamp END)
+          ) / 60
+          ELSE 0
+        END AS horas_dia
+      FROM registros_asistencia r
+      JOIN trabajadores t ON t.id = r.trabajador_id
+      JOIN obras o ON o.id = r.obra_id
+      WHERE t.empresa_id = ?
+        AND r.fecha BETWEEN ? AND ?
+        AND r.estado = 'valido'
+    `;
+    const paramsDaily = [empresa_id, fecha_inicio, fecha_fin];
+    if (obraParam != null) {
+      queryDaily += ' AND r.obra_id = ?';
+      paramsDaily.push(obraParam);
+    }
+    queryDaily +=
+      ' GROUP BY t.id, r.fecha, o.id, t.nombre, t.apellido, o.nombre ORDER BY t.id, r.fecha';
+
+    const [dailyRows] = await db.query(queryDaily, paramsDaily);
+
+    let countQuery = `
+      SELECT COUNT(*) AS total
+      FROM registros_asistencia r
+      JOIN trabajadores t ON t.id = r.trabajador_id
+      JOIN obras o ON o.id = r.obra_id
+      WHERE t.empresa_id = ?
+        AND r.fecha BETWEEN ? AND ?
+        AND r.estado = 'valido'
+    `;
+    const countParams = [empresa_id, fecha_inicio, fecha_fin];
+    if (obraParam != null) {
+      countQuery += ' AND r.obra_id = ?';
+      countParams.push(obraParam);
+    }
+    const [[{ total: totalRegistros }]] = await db.query(countQuery, countParams);
+
+    const [activos] = await db.query(
+      `SELECT t.id, CONCAT(t.nombre, ' ', t.apellido) AS nombre
+       FROM trabajadores t
+       WHERE t.empresa_id = ? AND t.estado = 'activo'
+       ORDER BY t.apellido, t.nombre`,
+      [empresa_id]
+    );
+
+    const porTrabajador = new Map();
+    for (const row of dailyRows) {
+      const id = row.trabajador_id;
+      if (!porTrabajador.has(id)) {
+        porTrabajador.set(id, {
+          nombre: row.nombre,
+          fechasConIngreso: new Set(),
+          obras: new Set(),
+          horasTotales: 0,
+        });
+      }
+      const agg = porTrabajador.get(id);
+      if (row.hora_entrada) {
+        agg.fechasConIngreso.add(String(row.fecha).slice(0, 10));
+        agg.obras.add(row.obra_nombre);
+      }
+      agg.horasTotales += Number(row.horas_dia) || 0;
+    }
+
+    const diasAsistenciaGlobal = new Set();
+    const trabajadores = activos.map((t) => {
+      const agg = porTrabajador.get(t.id);
+      const diasAsistidos = agg ? agg.fechasConIngreso.size : 0;
+      if (agg) {
+        for (const f of agg.fechasConIngreso) diasAsistenciaGlobal.add(`${t.id}|${f}`);
+      }
+      const ausencias = Math.max(0, diasEnRango - diasAsistidos);
+      const horasTotales = agg ? Math.round(agg.horasTotales * 100) / 100 : 0;
+      const obra =
+        agg && agg.obras.size
+          ? [...agg.obras].sort((a, b) => a.localeCompare(b)).join(', ')
+          : '';
+      return {
+        id: t.id,
+        nombre: t.nombre,
+        obra,
+        diasAsistidos,
+        ausencias,
+        horasTotales,
+      };
+    });
+
+    const ausenciasTotales = trabajadores.reduce((acc, row) => acc + row.ausencias, 0);
+    const sumHoras = trabajadores.reduce((acc, row) => acc + row.horasTotales, 0);
+    const sumDiasAsistidos = trabajadores.reduce((acc, row) => acc + row.diasAsistidos, 0);
+    const promedioDiario =
+      sumDiasAsistidos > 0 ? Math.round((sumHoras / sumDiasAsistidos) * 100) / 100 : 0;
+
+    const vacio = Number(totalRegistros) === 0;
+
+    return success(res, {
+      resumen: {
+        totalRegistros: Number(totalRegistros),
+        diasConAsistencia: diasAsistenciaGlobal.size,
+        ausenciasTotales,
+        promedioDiario,
+      },
+      trabajadores,
+      vacio,
+    });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
 const rowsToCsv = (rows) => {
   if (!rows.length) return '';
   const headers = Object.keys(rows[0]);
@@ -241,4 +395,5 @@ module.exports = {
   ausencias,
   horasTrabajadas,
   exportarReporte,
+  generarResumen,
 };

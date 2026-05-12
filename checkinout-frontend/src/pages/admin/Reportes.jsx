@@ -27,7 +27,7 @@ export default function Reportes() {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState(null);
   const [resumen, setResumen] = useState(() => reportesService.getResumenGlobal());
-  const [trabajadores, setTrabajadores] = useState(() => [...reportesService.MOCK_TABLA_REPORTES]);
+  const [trabajadores, setTrabajadores] = useState(() => []);
   const [vacio, setVacio] = useState(false);
   const [filtrosAplicados, setFiltrosAplicados] = useState({ obra: "", estado: "", fi: "", ff: "" });
 
@@ -176,8 +176,8 @@ export default function Reportes() {
               <select className="select w-full" value={obra} onChange={(e) => setObra(e.target.value)}>
                 <option value="">Todas</option>
                 {obrasOpts.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
+                  <option key={o.id} value={o.id}>
+                    {o.nombre}
                   </option>
                 ))}
               </select>

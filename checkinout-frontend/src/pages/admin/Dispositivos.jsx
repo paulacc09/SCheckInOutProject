@@ -74,7 +74,12 @@ export default function Dispositivos() {
     setFormErr({});
     setTipo("Tablet");
     setShowPin(false);
-    setForm({ nombre: "", idManual: "", obra: obrasOpts[0] || "", pin: "" });
+    setForm({
+      nombre: "",
+      idManual: "",
+      obra: obrasOpts[0] != null ? String(obrasOpts[0].id) : "",
+      pin: "",
+    });
     setModalOpen(true);
   };
 
@@ -83,10 +88,17 @@ export default function Dispositivos() {
     setFormErr({});
     setTipo(d.tipo);
     setShowPin(false);
+    const obraId =
+      d.obra === "Sin asignar" || !d.obra
+        ? ""
+        : (() => {
+            const byName = obrasOpts.find((o) => o.nombre === d.obra);
+            return byName != null ? String(byName.id) : String(d.obra);
+          })();
     setForm({
       nombre: d.nombre,
       idManual: d.id,
-      obra: d.obra === "Sin asignar" ? "" : d.obra,
+      obra: obraId,
       pin: d.pin || "",
     });
     setModalOpen(true);
@@ -187,7 +199,9 @@ export default function Dispositivos() {
           <select className="select" value={obra} onChange={(e) => setObra(e.target.value)}>
             <option value="">Obra</option>
             {obrasOpts.map((o) => (
-              <option key={o} value={o}>{o}</option>
+              <option key={o.id} value={String(o.id)}>
+                {o.nombre}
+              </option>
             ))}
           </select>
           <select className="select" value={estado} onChange={(e) => setEstado(e.target.value)}>
@@ -282,7 +296,9 @@ export default function Dispositivos() {
             <select className="select" value={form.obra} onChange={(e) => setForm((f) => ({ ...f, obra: e.target.value }))}>
               <option value="">Sin asignar</option>
               {obrasOpts.map((o) => (
-                <option key={o} value={o}>{o}</option>
+                <option key={o.id} value={String(o.id)}>
+                  {o.nombre}
+                </option>
               ))}
             </select>
           </div>

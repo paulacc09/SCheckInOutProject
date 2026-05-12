@@ -1,5 +1,6 @@
 import { store } from "./dataStore.js";
 import { delay, ok, fail } from "./serviceUtils.js";
+import api from "../api/axios";
 
 const pendientes = [
   { id: 1, tipo: "Médico", titulo: "Permiso Médico", trabajador: "Julio Sanchez", obra: "Mandarino" },
@@ -121,8 +122,18 @@ export async function getPendientes(filtros = {}) {
   return ok(rows);
 }
 
-// TODO: reemplazar con GET /api/obras/options
 export async function getNombresObras() {
-  await delay();
-  return ok(store.obras.map((o) => o.nombre));
+  try {
+    const res = await api.get("/obras");
+    const rows = res.data.data;
+    return {
+      ok: true,
+      data: (Array.isArray(rows) ? rows : []).map((o) => ({ id: o.id, nombre: o.nombre })),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err.response?.data?.message || err.message || "Error al cargar obras",
+    };
+  }
 }
