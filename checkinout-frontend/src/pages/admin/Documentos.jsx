@@ -4,8 +4,10 @@ import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
+import SortTh from "../../components/SortTh";
 import { paginate } from "../../services/pagination";
 import * as documentosService from "../../services/documentosService";
+import { useSortable } from "../../hooks/useSortable";
 import api from "../../api/axios";
 
 const PAGE_SIZE = 8;
@@ -121,9 +123,15 @@ export default function Documentos() {
     setPage(1);
   }, [tab, q, estadoFiltro, tipoDoc]);
 
+  const docs_filtrados = useMemo(
+    () => rows.map((d) => ({ ...d, fecha_vencimiento: d.vencimiento })),
+    [rows]
+  );
+  const { sorted, sortCol, sortDir, toggle } = useSortable(docs_filtrados);
+
   const { items: pageRows, totalPages, page: safePage } = useMemo(
-    () => paginate(rows, page, PAGE_SIZE),
-    [rows, page]
+    () => paginate(sorted, page, PAGE_SIZE),
+    [sorted, page]
   );
 
   const abrirSubir = () => {
@@ -315,12 +323,21 @@ export default function Documentos() {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Trabajador</th>
-                  <th>Documento</th>
+                  <SortTh col="trabajador" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    Trabajador
+                  </SortTh>
+                  <SortTh col="tipo" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    Tipo de documento
+                  </SortTh>
                   <th>Emisión</th>
-                  <th>Vencimiento</th>
-                  <th>Estado</th>
-                  <th>Editar</th>
+                  <SortTh col="fecha_vencimiento" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    Fecha de vencimiento
+                  </SortTh>
+                  <SortTh col="estado" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    Estado
+                  </SortTh>
+                  <th>Archivo</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -342,6 +359,20 @@ export default function Documentos() {
                         </span>
                       </td>
                       <td>
+                        {d.archivo_url ? (
+                          <a
+                            href={d.archivo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#1565C0] underline text-sm font-medium"
+                          >
+                            Ver
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>
                         <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" title="Editar" onClick={() => abrirEditar(d)}>
                           <Pencil className="w-4 h-4 text-slate-600" />
                         </button>
@@ -354,7 +385,7 @@ export default function Documentos() {
           </div>
         )}
 
-        {rows.length > 0 && <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />}
+        {sorted.length > 0 && <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />}
       </div>
 
       <Modal

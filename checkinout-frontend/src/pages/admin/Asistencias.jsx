@@ -3,6 +3,8 @@ import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
 import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
+import SortTh from "../../components/SortTh";
+import { useSortable } from "../../hooks/useSortable";
 import { paginate } from "../../services/pagination";
 
 const PAGE_SIZE = 10;
@@ -61,13 +63,17 @@ export default function Asistencias() {
     setPage(1);
   }, [q, fecha, obraId]);
 
-  const totalRegistrados = rows.length;
-  const activos = rows.filter((r) => r.estado === "Activo").length;
-  const salida = rows.filter((r) => r.estado === "Salida").length;
+  const registros_filtrados = rows;
+
+  const totalRegistrados = registros_filtrados.length;
+  const activos = registros_filtrados.filter((r) => r.estado === "Activo").length;
+  const salida = registros_filtrados.filter((r) => r.estado === "Salida").length;
+
+  const { sorted, sortCol, sortDir, toggle } = useSortable(registros_filtrados);
 
   const { items: pageRows, totalPages, page: safePage } = useMemo(
-    () => paginate(rows, page, PAGE_SIZE),
-    [rows, page]
+    () => paginate(sorted, page, PAGE_SIZE),
+    [sorted, page]
   );
 
   return (
@@ -117,7 +123,7 @@ export default function Asistencias() {
 
         {loading ? (
           <div className="card card-body flex justify-center py-16 text-slate-500">Cargando…</div>
-        ) : rows.length === 0 ? (
+        ) : registros_filtrados.length === 0 ? (
           <div className="card card-body text-center text-slate-500">
             No hay registros que coincidan con los filtros.
           </div>
@@ -127,20 +133,29 @@ export default function Asistencias() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Nombre</th>
-                    <th>Obra</th>
-                    <th>Fecha</th>
-                    <th>Ingreso</th>
-                    <th>Salida</th>
+                    <SortTh col="nombre" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Trabajador
+                    </SortTh>
+                    <SortTh col="cedula" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Cédula
+                    </SortTh>
+                    <SortTh col="obra" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Obra
+                    </SortTh>
+                    <SortTh col="fecha" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Fecha
+                    </SortTh>
+                    <th>Entradas</th>
+                    <th>Salidas</th>
                     <th>Estado</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pageRows.map((r, idx) => (
                     <tr key={`${r.trabajador_id}-${String(r.fecha)}-${r.obra}-${idx}`}>
-                      <td>{r.trabajador_id}</td>
                       <td>{r.nombre ?? "—"}</td>
+                      <td className="font-mono text-xs">{r.cedula ?? "—"}</td>
                       <td>{r.obra ?? "—"}</td>
                       <td>{String(r.fecha).slice(0, 10)}</td>
                       <td>{r.hora_ingreso ?? "--"}</td>
@@ -148,6 +163,7 @@ export default function Asistencias() {
                       <td>
                         <span className={`badge ${badgeEstado(r.estado)}`}>{r.estado ?? "—"}</span>
                       </td>
+                      <td className="text-slate-400">—</td>
                     </tr>
                   ))}
                 </tbody>

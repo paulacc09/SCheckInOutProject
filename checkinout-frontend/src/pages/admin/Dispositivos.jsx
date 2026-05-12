@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
+import SortTh from "../../components/SortTh";
+import { useSortable } from "../../hooks/useSortable";
 import { paginate } from "../../services/pagination";
 import * as dispositivosService from "../../services/dispositivosService";
-import { getNombresObras } from "../../services/obrasService";
 
 const PAGE_SIZE = 10;
-
-function fmtAcceso(iso) {
-  if (!iso) return "—";
-  return iso;
-}
 
 export default function Dispositivos() {
   const [q, setQ] = useState("");
@@ -55,8 +52,14 @@ export default function Dispositivos() {
 
   useEffect(() => {
     (async () => {
-      const r = await getNombresObras();
-      if (r.ok) setObrasOpts(r.data);
+      try {
+        const { data } = await api.get("/obras");
+        setObrasOpts(
+          (Array.isArray(data) ? data : data.data ?? []).map((o) => ({ id: o.id, nombre: o.nombre }))
+        );
+      } catch {
+        setObrasOpts([]);
+      }
     })();
   }, []);
 
@@ -64,9 +67,26 @@ export default function Dispositivos() {
     setPage(1);
   }, [q, obra, estado]);
 
+  const filas_filtradas = useMemo(
+    () =>
+      rows.map((d) => ({
+        ...d,
+        obra_id:
+          d.obra_id ??
+          (() => {
+            if (!d.obra || d.obra === "Sin asignar") return null;
+            const found = obrasOpts.find((o) => o.nombre === d.obra);
+            return found != null ? found.id : null;
+          })(),
+      })),
+    [rows, obrasOpts]
+  );
+
+  const { sorted, sortCol, sortDir, toggle } = useSortable(filas_filtradas);
+
   const { items: pageRows, totalPages, page: safePage } = useMemo(
-    () => paginate(rows, page, PAGE_SIZE),
-    [rows, page]
+    () => paginate(sorted, page, PAGE_SIZE),
+    [sorted, page]
   );
 
   const abrirCrear = () => {
@@ -220,7 +240,23 @@ export default function Dispositivos() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>ID</th><th>Nombre</th><th>Tipo</th><th>Obra</th><th>Último Acceso</th><th>Estado</th><th>Editar</th>
+                  <SortTh col="id" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    ID
+                  </SortTh>
+                  <SortTh col="nombre" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    Nombre
+                  </SortTh>
+                  <SortTh col="tipo" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    Tipo
+                  </SortTh>
+                  <SortTh col="obra_id" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    Obra
+                  </SortTh>
+                  <SortTh col="estado" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    Estado
+                  </SortTh>
+                  <th>PIN</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,7 +266,6 @@ export default function Dispositivos() {
                     <td>{d.nombre}</td>
                     <td>{d.tipo}</td>
                     <td>{d.obra}</td>
-                    <td>{fmtAcceso(d.ultimoAcceso)}</td>
                     <td>
                       <button
                         type="button"
@@ -240,6 +275,7 @@ export default function Dispositivos() {
                         {d.estado}
                       </button>
                     </td>
+                    <td className="font-mono text-xs">{d.pin ? "••••••" : "—"}</td>
                     <td className="flex gap-2">
                       <button type="button" className="p-1.5 rounded-lg hover:bg-slate-100" onClick={() => abrirEditar(d)}>
                         <Pencil className="w-4 h-4 text-slate-600" />
@@ -255,7 +291,7 @@ export default function Dispositivos() {
           </div>
         )}
 
-        {rows.length > 0 && <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />}
+        {sorted.length > 0 && <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />}
       </div>
 
       <Modal

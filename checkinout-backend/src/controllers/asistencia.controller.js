@@ -302,6 +302,7 @@ const listarResumenPorTrabajador = async (req, res) => {
     let query = `
       SELECT t.id AS trabajador_id,
              CONCAT(t.nombre,' ',t.apellido) AS nombre,
+             t.cedula,
              o.nombre AS obra,
              MAX(CASE WHEN r.tipo='ingreso' THEN TIME(r.timestamp) END) AS hora_ingreso,
              MAX(CASE WHEN r.tipo='salida' THEN TIME(r.timestamp) END) AS hora_salida,

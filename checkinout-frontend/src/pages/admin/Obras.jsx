@@ -5,6 +5,8 @@ import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
+import SortTh from "../../components/SortTh";
+import { useSortable } from "../../hooks/useSortable";
 import { paginate } from "../../services/pagination";
 
 const PAGE_SIZE = 8;
@@ -95,9 +97,11 @@ export default function Obras() {
     });
   }, [rows, q, estado, ciudad]);
 
+  const { sorted, sortCol, sortDir, toggle } = useSortable(filteredRows);
+
   const { items: pageRows, totalPages, page: safePage } = useMemo(
-    () => paginate(filteredRows, page, PAGE_SIZE),
-    [filteredRows, page]
+    () => paginate(sorted, page, PAGE_SIZE),
+    [sorted, page]
   );
 
   const openCreate = async () => {
@@ -228,12 +232,24 @@ export default function Obras() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>CÓDIGO</th>
-                  <th>NOMBRE</th>
-                  <th>CIUDAD</th>
-                  <th>DIRECCIÓN</th>
-                  <th>ESTADO</th>
-                  <th>PERSONAL</th>
+                  <SortTh col="codigo" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    CÓDIGO
+                  </SortTh>
+                  <SortTh col="nombre" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    NOMBRE
+                  </SortTh>
+                  <SortTh col="ciudad" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    CIUDAD
+                  </SortTh>
+                  <SortTh col="direccion" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    DIRECCIÓN
+                  </SortTh>
+                  <SortTh col="estado" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    ESTADO
+                  </SortTh>
+                  <SortTh col="personal" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                    PERSONAL
+                  </SortTh>
                   <th>ACCIONES</th>
                 </tr>
               </thead>
@@ -259,7 +275,7 @@ export default function Obras() {
             </table>
           </div>
         )}
-        {!loading && filteredRows.length > 0 && (
+        {!loading && sorted.length > 0 && (
           <PaginationBar page={safePage} totalPages={totalPages} onChange={setPage} />
         )}
       </div>

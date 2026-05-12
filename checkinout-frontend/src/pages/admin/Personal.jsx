@@ -6,6 +6,8 @@ import Modal from "../../components/Modal";
 import EmptyState from "../../components/EmptyState";
 import CamaraFacial from "../../components/CamaraFacial";
 import PaginationBar from "../../components/PaginationBar";
+import SortTh from "../../components/SortTh";
+import { useSortable } from "../../hooks/useSortable";
 import { paginate } from "../../services/pagination";
 
 const PAGE_SIZE = 10;
@@ -178,22 +180,29 @@ export default function Personal() {
     }
   };
 
-  const filtrados = trabajadores.filter((t) => {
-    const txt = q.toLowerCase();
-    const okQ = !txt ||
-      `${t.nombre} ${t.apellido}`.toLowerCase().includes(txt) ||
-      (t.cedula || "").toLowerCase().includes(txt);
-    const okEstado = !estado || t.estado === estado;
-    return okQ && okEstado;
-  });
+  const filtrados = useMemo(
+    () =>
+      trabajadores.filter((t) => {
+        const txt = q.toLowerCase();
+        const okQ =
+          !txt ||
+          `${t.nombre} ${t.apellido}`.toLowerCase().includes(txt) ||
+          (t.cedula || "").toLowerCase().includes(txt);
+        const okEstado = !estado || t.estado === estado;
+        return okQ && okEstado;
+      }),
+    [trabajadores, q, estado]
+  );
+
+  const { sorted, sortCol, sortDir, toggle } = useSortable(filtrados);
 
   useEffect(() => {
     setPage(1);
   }, [q, estado]);
 
   const { items: filas, totalPages, page: safePage } = useMemo(
-    () => paginate(filtrados, page, PAGE_SIZE),
-    [filtrados, page, PAGE_SIZE]
+    () => paginate(sorted, page, PAGE_SIZE),
+    [sorted, page, PAGE_SIZE]
   );
 
   return (
@@ -232,7 +241,25 @@ export default function Personal() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>ID</th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Obra</th><th>Estado</th><th></th>
+                    <SortTh col="id" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      ID
+                    </SortTh>
+                    <SortTh col="nombre" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Nombre
+                    </SortTh>
+                    <SortTh col="cedula" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Documento
+                    </SortTh>
+                    <SortTh col="subcargo_nombre" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Cargo
+                    </SortTh>
+                    <SortTh col="obra_nombre" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Obra
+                    </SortTh>
+                    <SortTh col="estado" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Estado
+                    </SortTh>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>

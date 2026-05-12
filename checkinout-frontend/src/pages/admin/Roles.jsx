@@ -5,6 +5,8 @@ import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
+import SortTh from "../../components/SortTh";
+import { useSortable } from "../../hooks/useSortable";
 import { paginate } from "../../services/pagination";
 
 const PAGE_SIZE = 10;
@@ -95,9 +97,11 @@ export default function Roles() {
     setPage(1);
   }, [q, rolFiltro]);
 
+  const { sorted, sortCol, sortDir, toggle } = useSortable(lista);
+
   const { items: rows, totalPages, page: safePage } = useMemo(
-    () => paginate(lista, page, PAGE_SIZE),
-    [lista, page]
+    () => paginate(sorted, page, PAGE_SIZE),
+    [sorted, page]
   );
 
   const abrirCrear = () => {
@@ -251,12 +255,24 @@ export default function Roles() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Nombre</th>
-                    <th>Correo</th>
-                    <th>Rol</th>
-                    <th>Obra</th>
-                    <th>Estado</th>
+                    <SortTh col="id" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      ID
+                    </SortTh>
+                    <SortTh col="nombre" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Nombre
+                    </SortTh>
+                    <SortTh col="email" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Correo
+                    </SortTh>
+                    <SortTh col="rol" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Rol
+                    </SortTh>
+                    <SortTh col="obra_id" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Obra
+                    </SortTh>
+                    <SortTh col="estado" sortCol={sortCol} sortDir={sortDir} onSort={toggle}>
+                      Estado
+                    </SortTh>
                     <th>Acciones</th>
                   </tr>
                 </thead>
