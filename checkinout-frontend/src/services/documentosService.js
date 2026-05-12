@@ -41,19 +41,6 @@ export function calcularEstado(vencimientoIso) {
   return "Vigente";
 }
 
-/**
- * Si la URL de Cloudinary es un PDF, reemplaza /image/upload/ por /raw/upload/ para abrir/descargar bien el archivo.
- */
-export function fixCloudinaryUrl(url) {
-  if (url == null || typeof url !== "string") return url;
-  const u = url.trim();
-  if (!u) return u;
-  const pathForExt = u.split("?")[0].split("#")[0];
-  if (!/\.pdf$/i.test(pathForExt)) return u;
-  if (!u.includes("/image/upload/")) return u;
-  return u.replace("/image/upload/", "/raw/upload/");
-}
-
 function toDateIso(v) {
   if (v == null) return "";
   if (typeof v === "string") return v.slice(0, 10);
@@ -242,8 +229,11 @@ export async function subirArchivoCloudinary(file) {
   formData.append("file", file);
   formData.append("upload_preset", uploadPreset);
 
+  const resourceType = file.type === "application/pdf" ? "raw" : "image";
+  const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
+
   try {
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+    const res = await fetch(endpoint, {
       method: "POST",
       body: formData,
     });

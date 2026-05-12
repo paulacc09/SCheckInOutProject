@@ -6,7 +6,6 @@ import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
 import { paginate } from "../../services/pagination";
 import * as documentosService from "../../services/documentosService";
-import { fixCloudinaryUrl } from "../../services/documentosService";
 import api from "../../api/axios";
 
 const PAGE_SIZE = 8;
@@ -417,7 +416,7 @@ export default function Documentos() {
             {editing?.archivo_url ? (
               <div className="flex flex-col gap-2 text-sm">
                 <a
-                  href={fixCloudinaryUrl(editing.archivo_url)}
+                  href={editing.archivo_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#1565C0] underline font-medium"
