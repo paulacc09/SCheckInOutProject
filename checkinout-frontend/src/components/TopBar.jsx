@@ -1,13 +1,12 @@
 import { Bell, Settings, UserCircle2 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { countPendientes } from "../services/novedadesService";
+import { useNotificaciones } from "../context/NotificacionesContext";
 
 export default function TopBar({ right, title }) {
   const { usuario } = useAuth();
+  const { badge } = useNotificaciones();
   const navigate = useNavigate();
-  const [pendientes, setPendientes] = useState(countPendientes());
   const esAdmin = usuario?.rol === "administrador";
   const notifPath =
     usuario?.rol === "inspector_sst"
@@ -27,12 +26,6 @@ export default function TopBar({ right, title }) {
       : usuario?.rol === "encargado"
         ? "Encargado"
         : "Administrador";
-  useEffect(() => {
-    const refresh = () => setPendientes(countPendientes());
-    refresh();
-    window.addEventListener("checkinout-novedades-changed", refresh);
-    return () => window.removeEventListener("checkinout-novedades-changed", refresh);
-  }, []);
 
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200">
@@ -47,9 +40,9 @@ export default function TopBar({ right, title }) {
           onClick={() => navigate(notifPath)}
         >
           <Bell className="w-5 h-5 text-slate-600" />
-          {pendientes > 0 && (
+          {badge > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] leading-[18px] font-semibold text-center">
-              {pendientes}
+              {badge}
             </span>
           )}
         </button>
