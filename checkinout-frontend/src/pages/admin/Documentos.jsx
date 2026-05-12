@@ -6,6 +6,7 @@ import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
 import { paginate } from "../../services/pagination";
 import * as documentosService from "../../services/documentosService";
+import api from "../../api/axios";
 
 const PAGE_SIZE = 8;
 const TABS = [
@@ -48,6 +49,16 @@ export default function Documentos() {
   const [form, setForm] = useState({ tipo: "", emision: "", vencimiento: "" });
   const [formErr, setFormErr] = useState({});
 
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [trabajadoresOpts, setTrabajadoresOpts] = useState([]);
+  const [uploadForm, setUploadForm] = useState({
+    trabajador_id: "",
+    tipo: "",
+    emision: "",
+    vencimiento: "",
+  });
+  const [uploadFormErr, setUploadFormErr] = useState({});
+
   const cargar = useCallback(async () => {
     setLoading(true);
     const res = await documentosService.getAll({
@@ -76,6 +87,32 @@ export default function Documentos() {
   }, []);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get("/trabajadores", { params: { page: 1, limit: 500 } });
+        if (res.data?.ok === false) {
+          setTrabajadoresOpts([]);
+          return;
+        }
+        const payload = res.data?.data;
+        const raw = Array.isArray(payload?.trabajadores) ? payload.trabajadores : [];
+        const byId = new Map();
+        for (const t of raw) {
+          if (t?.id != null && !byId.has(t.id)) {
+            byId.set(t.id, {
+              id: t.id,
+              nombre: `${t.nombre ?? ""} ${t.apellido ?? ""}`.trim() || `ID ${t.id}`,
+            });
+          }
+        }
+        setTrabajadoresOpts([...byId.values()]);
+      } catch {
+        setTrabajadoresOpts([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     setPage(1);
   }, [tab, q, estadoFiltro, tipoDoc]);
 
@@ -83,6 +120,44 @@ export default function Documentos() {
     () => paginate(rows, page, PAGE_SIZE),
     [rows, page]
   );
+
+  const abrirSubir = () => {
+    setUploadModalOpen(true);
+    setUploadFormErr({});
+    setUploadForm({ trabajador_id: "", tipo: "", emision: "", vencimiento: "" });
+  };
+
+  const validarSubir = () => {
+    const e = {};
+    if (!String(uploadForm.trabajador_id).trim()) e.trabajador_id = "Obligatorio";
+    if (!uploadForm.tipo?.trim()) e.tipo = "Obligatorio";
+    if (!uploadForm.emision) e.emision = "Obligatorio";
+    if (!uploadForm.vencimiento) e.vencimiento = "Obligatorio";
+    setUploadFormErr(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const guardarSubir = async (ev) => {
+    ev.preventDefault();
+    if (!validarSubir()) return;
+    setSaving(true);
+    const res = await documentosService.create({
+      trabajador_id: Number(uploadForm.trabajador_id),
+      tipo: uploadForm.tipo.trim(),
+      fecha_expedicion: uploadForm.emision,
+      fecha_vencimiento: uploadForm.vencimiento,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setFlash({ type: "error", message: res.message });
+      return;
+    }
+    setFlash({ type: "ok", message: "Documento creado" });
+    setUploadModalOpen(false);
+    const a = await documentosService.getAlertaPorVencer();
+    if (a.ok) setAlerta(a.data);
+    await cargar();
+  };
 
   const abrirEditar = async (row) => {
     setEditing(row);
@@ -133,7 +208,18 @@ export default function Documentos() {
 
   return (
     <>
-      <TopBar title="Gestión de documentos del personal" />
+      <TopBar
+        title="Gestión de documentos del personal"
+        right={(
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-[#1e2a4a] hover:opacity-95"
+            onClick={abrirSubir}
+          >
+            + Subir documento
+          </button>
+        )}
+      />
       <div className="p-6 space-y-4">
         {flash && <FlashBanner type={flash.type === "error" ? "error" : "ok"} message={flash.message} onClose={() => setFlash(null)} />}
 
@@ -272,6 +358,79 @@ export default function Documentos() {
             <label className="label">Vencimiento</label>
             <input type="date" className="input w-full" value={form.vencimiento} onChange={(e) => setForm((f) => ({ ...f, vencimiento: e.target.value }))} />
             {formErr.vencimiento && <p className="text-xs text-red-600 mt-1">{formErr.vencimiento}</p>}
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        title="Subir documento"
+        size="md"
+        footer={(
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setUploadModalOpen(false)}>
+              Cancelar
+            </button>
+            <button type="button" className="btn text-white" style={{ background: "#1e2a4a" }} disabled={saving} onClick={guardarSubir}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Guardar
+            </button>
+          </>
+        )}
+      >
+        <form className="space-y-4" onSubmit={guardarSubir}>
+          <div>
+            <label className="label">Trabajador</label>
+            <select
+              className="select w-full"
+              value={uploadForm.trabajador_id}
+              onChange={(e) => setUploadForm((f) => ({ ...f, trabajador_id: e.target.value }))}
+            >
+              <option value="">Seleccione</option>
+              {trabajadoresOpts.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombre}
+                </option>
+              ))}
+            </select>
+            {uploadFormErr.trabajador_id && <p className="text-xs text-red-600 mt-1">{uploadFormErr.trabajador_id}</p>}
+          </div>
+          <div>
+            <label className="label">Tipo</label>
+            <select
+              className="select w-full"
+              value={uploadForm.tipo}
+              onChange={(e) => setUploadForm((f) => ({ ...f, tipo: e.target.value }))}
+            >
+              <option value="">Seleccione</option>
+              {tiposOpts.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+            {uploadFormErr.tipo && <p className="text-xs text-red-600 mt-1">{uploadFormErr.tipo}</p>}
+          </div>
+          <div>
+            <label className="label">Emisión</label>
+            <input
+              type="date"
+              className="input w-full"
+              value={uploadForm.emision}
+              onChange={(e) => setUploadForm((f) => ({ ...f, emision: e.target.value }))}
+            />
+            {uploadFormErr.emision && <p className="text-xs text-red-600 mt-1">{uploadFormErr.emision}</p>}
+          </div>
+          <div>
+            <label className="label">Vencimiento</label>
+            <input
+              type="date"
+              className="input w-full"
+              value={uploadForm.vencimiento}
+              onChange={(e) => setUploadForm((f) => ({ ...f, vencimiento: e.target.value }))}
+            />
+            {uploadFormErr.vencimiento && <p className="text-xs text-red-600 mt-1">{uploadFormErr.vencimiento}</p>}
           </div>
         </form>
       </Modal>
