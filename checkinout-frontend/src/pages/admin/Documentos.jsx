@@ -61,6 +61,9 @@ export default function Documentos() {
   const [uploadFile, setUploadFile] = useState(null);
   const uploadFileInputRef = useRef(null);
 
+  const [editFile, setEditFile] = useState(null);
+  const editFileInputRef = useRef(null);
+
   const cargar = useCallback(async () => {
     setLoading(true);
     const res = await documentosService.getAll({
@@ -178,6 +181,8 @@ export default function Documentos() {
 
   const abrirEditar = async (row) => {
     setEditing(row);
+    setEditFile(null);
+    if (editFileInputRef.current) editFileInputRef.current.value = "";
     setFormErr({});
     const res = await documentosService.getById(row.id);
     if (!res.ok) {
@@ -185,6 +190,7 @@ export default function Documentos() {
       return;
     }
     const d = res.data;
+    setEditing((prev) => ({ ...prev, ...d }));
     setForm({
       tipo: d.tipo,
       emision: d.emision,
@@ -206,11 +212,23 @@ export default function Documentos() {
     ev.preventDefault();
     if (!validar()) return;
     setSaving(true);
-    const res = await documentosService.update(editing.id, {
+
+    const payload = {
       tipo: form.tipo.trim(),
       emision: form.emision,
       vencimiento: form.vencimiento,
-    });
+    };
+    if (editFile) {
+      const up = await documentosService.subirArchivoCloudinary(editFile);
+      if (!up.ok) {
+        setSaving(false);
+        setFlash({ type: "error", message: up.message });
+        return;
+      }
+      payload.archivo_url = up.data.url;
+    }
+
+    const res = await documentosService.update(editing.id, payload);
     setSaving(false);
     if (!res.ok) {
       setFlash({ type: "error", message: res.message });
@@ -218,6 +236,8 @@ export default function Documentos() {
     }
     setFlash({ type: "ok", message: "Cambios guardados" });
     setModalOpen(false);
+    setEditFile(null);
+    if (editFileInputRef.current) editFileInputRef.current.value = "";
     const a = await documentosService.getAlertaPorVencer();
     if (a.ok) setAlerta(a.data);
     await cargar();
@@ -339,12 +359,20 @@ export default function Documentos() {
 
       <Modal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setEditFile(null);
+          if (editFileInputRef.current) editFileInputRef.current.value = "";
+        }}
         title="Editar documento"
         size="md"
         footer={(
           <>
-            <button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>
+            <button type="button" className="btn btn-outline" onClick={() => {
+              setModalOpen(false);
+              setEditFile(null);
+              if (editFileInputRef.current) editFileInputRef.current.value = "";
+            }}>
               Cancelar
             </button>
             <button type="button" className="btn text-white" style={{ background: "#1e2a4a" }} disabled={saving} onClick={guardar}>
@@ -375,6 +403,52 @@ export default function Documentos() {
             <label className="label">Vencimiento</label>
             <input type="date" className="input w-full" value={form.vencimiento} onChange={(e) => setForm((f) => ({ ...f, vencimiento: e.target.value }))} />
             {formErr.vencimiento && <p className="text-xs text-red-600 mt-1">{formErr.vencimiento}</p>}
+          </div>
+          <div className="space-y-2">
+            <label className="label">Archivo actual</label>
+            <input
+              ref={editFileInputRef}
+              type="file"
+              accept=".pdf,image/*"
+              className="hidden"
+              onChange={(e) => setEditFile(e.target.files?.[0] ?? null)}
+            />
+            {editing?.archivo_url ? (
+              <div className="flex flex-col gap-2 text-sm">
+                <a
+                  href={editing.archivo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#1565C0] underline font-medium"
+                >
+                  Ver archivo actual
+                </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline text-sm py-1.5"
+                    onClick={() => editFileInputRef.current?.click()}
+                  >
+                    Reemplazar
+                  </button>
+                  {editFile ? <span className="text-slate-600">{editFile.name}</span> : null}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-600 space-y-2">
+                <p>Sin archivo</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline text-sm py-1.5"
+                    onClick={() => editFileInputRef.current?.click()}
+                  >
+                    Reemplazar
+                  </button>
+                  {editFile ? <span className="text-slate-600">{editFile.name}</span> : null}
+                </div>
+              </div>
+            )}
           </div>
         </form>
       </Modal>

@@ -155,7 +155,9 @@ const crear = async (req, res) => {
 };
 
 const actualizar = async (req, res) => {
-  const { tipo, fecha_expedicion, fecha_vencimiento, archivo_url } = req.body;
+  const { tipo, fecha_expedicion, fecha_vencimiento } = req.body;
+  const actualizarArchivoUrl = Object.prototype.hasOwnProperty.call(req.body, 'archivo_url');
+  const archivo_url = req.body.archivo_url;
   if (!tipo || !fecha_expedicion || !fecha_vencimiento) {
     return error(res, 'tipo, fecha de expedición y fecha de vencimiento son requeridos', 400);
   }
@@ -171,19 +173,16 @@ const actualizar = async (req, res) => {
   const { estadoDoc, diff } = calcularEstadoDoc(fecha_vencimiento);
 
   try {
-    const [result] = await db.query(
-      `UPDATE documentos_trabajador SET tipo=?, fecha_expedicion=?, fecha_vencimiento=?, estado=?, archivo_url=?
-       WHERE id=? AND empresa_id=?`,
-      [
-        tipo,
-        fecha_expedicion,
-        fecha_vencimiento,
-        estadoDoc,
-        archivo_url || null,
-        req.params.id,
-        req.usuario.empresa_id,
-      ]
-    );
+    let sql = `UPDATE documentos_trabajador SET tipo=?, fecha_expedicion=?, fecha_vencimiento=?, estado=?`;
+    const params = [tipo, fecha_expedicion, fecha_vencimiento, estadoDoc];
+    if (actualizarArchivoUrl) {
+      sql += ', archivo_url=?';
+      params.push(archivo_url || null);
+    }
+    sql += ' WHERE id=? AND empresa_id=?';
+    params.push(req.params.id, req.usuario.empresa_id);
+
+    const [result] = await db.query(sql, params);
     if (!result.affectedRows) {
       return error(res, 'Documento no encontrado', 404);
     }

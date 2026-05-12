@@ -66,6 +66,7 @@ function mapApiRow(row) {
     emision: toDateIso(row.fecha_expedicion),
     vencimiento: venc,
     estado: calcularEstado(venc),
+    archivo_url: row.archivo_url ?? null,
   };
 }
 
@@ -189,12 +190,16 @@ export async function create(datos) {
 export async function update(id, datos) {
   const tipoRaw = datos.tipo != null ? String(datos.tipo).trim() : "";
   const tipo = TIPO_ETIQUETA_A_API[tipoRaw] || tipoRaw;
+  const body = {
+    tipo,
+    fecha_expedicion: datos.emision,
+    fecha_vencimiento: datos.vencimiento,
+  };
+  if (Object.prototype.hasOwnProperty.call(datos, "archivo_url")) {
+    body.archivo_url = datos.archivo_url;
+  }
   try {
-    const { data } = await api.put(`/documentos/${id}`, {
-      tipo,
-      fecha_expedicion: datos.emision,
-      fecha_vencimiento: datos.vencimiento,
-    });
+    const { data } = await api.put(`/documentos/${id}`, body);
     if (data?.ok === false) {
       return { ok: false, message: data.message || "Error al actualizar" };
     }
