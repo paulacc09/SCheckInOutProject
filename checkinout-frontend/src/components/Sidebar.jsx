@@ -15,6 +15,7 @@ const NAV = {
     { to: "/admin/asistencias",    label: "Asistencias",       icon: ClipboardList },
     { to: "/admin/reportes",       label: "Reportes",          icon: FileBarChart2 },
     { to: "/admin/documentos",     label: "Documentos",        icon: FileText },
+    { to: "/admin/novedades",     label: "Novedades",         icon: AlertTriangle },
     { to: "/admin/configuracion",  label: "Configuración",     icon: Settings },
   ],
   inspector_sst: [

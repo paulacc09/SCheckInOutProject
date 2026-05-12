@@ -18,6 +18,7 @@ import Dispositivos from "./pages/admin/Dispositivos";
 import Asistencias from "./pages/admin/Asistencias";
 import Reportes from "./pages/admin/Reportes";
 import Documentos from "./pages/admin/Documentos";
+import NovedadesAdmin from "./pages/admin/Novedades";
 import Configuracion from "./pages/admin/Configuracion";
 import Perfil from "./pages/admin/Perfil";
 import Notificaciones from "./pages/admin/Notificaciones";
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="/admin/asistencias" element={<Asistencias />} />
             <Route path="/admin/reportes" element={<Reportes />} />
             <Route path="/admin/documentos" element={<Documentos />} />
+            <Route path="/admin/novedades" element={<NovedadesAdmin />} />
             <Route path="/admin/configuracion" element={<Configuracion />} />
             <Route path="/admin/perfil" element={<Perfil />} />
             <Route path="/admin/notificaciones" element={<Notificaciones />} />
