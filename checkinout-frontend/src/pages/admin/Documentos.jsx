@@ -243,9 +243,11 @@ export default function Documentos() {
     await cargar();
   };
 
-  function normalizarUrlDoc(url) {
+  function getVerUrl(url) {
     if (!url) return url;
-    return /\.pdf$/i.test(url) ? url.replace("/image/upload/", "/raw/upload/") : url;
+    return /\.pdf$/i.test(url)
+      ? "https://docs.google.com/viewer?url=" + encodeURIComponent(url) + "&embedded=false"
+      : url;
   }
 
   return (
@@ -421,7 +423,7 @@ export default function Documentos() {
             {editing?.archivo_url ? (
               <div className="flex flex-col gap-2 text-sm">
                 <a
-                  href={normalizarUrlDoc(editing.archivo_url)}
+                  href={getVerUrl(editing.archivo_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#1565C0] underline font-medium"
