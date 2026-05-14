@@ -27,10 +27,34 @@ const nombreResponsable = (jornada, usuario) => {
   return usuario?.nombre ? `${usuario.nombre} ${usuario.apellido ?? ""}`.trim() : "";
 };
 
-const etiquetaEstadoPersonal = (estado) => {
-  if (estado === "Ausente") return { label: "Ausente", cls: "bg-red-400 text-white rounded px-2 py-0.5 text-xs" };
-  return { label: "Presente", cls: "bg-green-500 text-white rounded px-2 py-0.5 text-xs" };
-};
+const BADGE_AUSENTE = { label: "Ausente", cls: "bg-red-400 text-white rounded px-2 py-0.5 text-xs" };
+const BADGE_PRESENTE = { label: "Presente", cls: "bg-green-500 text-white rounded px-2 py-0.5 text-xs" };
+
+function horaCampoDefinido(v) {
+  if (v == null) return false;
+  if (typeof v === "string") {
+    const s = v.trim();
+    return s.length > 0 && s !== "null";
+  }
+  if (v instanceof Date) return !Number.isNaN(v.getTime());
+  return true;
+}
+
+/** Mapea fila de GET /asistencia/resumen-trabajadores al badge de Estado. */
+function etiquetaEstadoResumen(r) {
+  const tipo = String(r?.tipo ?? "").toLowerCase();
+  const estado = String(r?.estado ?? "").toLowerCase();
+
+  const esSalida =
+    tipo === "salida" || estado === "salida" || horaCampoDefinido(r?.hora_salida);
+
+  const esPresente =
+    tipo === "ingreso" || estado === "presente" || estado === "activo";
+
+  if (esSalida) return BADGE_AUSENTE;
+  if (esPresente) return BADGE_PRESENTE;
+  return BADGE_AUSENTE;
+}
 
 function tieneDescriptorFacial(t) {
   const d = t?.descriptor_facial ?? t?.descriptor;
@@ -73,6 +97,8 @@ export default function Asistencia() {
     });
     const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
     setResumenRows(rows);
+    // Temporal: ver en consola del navegador la forma real de cada fila (campos del backend).
+    console.log("[asistencia/resumen-trabajadores] resumenRows", rows);
     return rows;
   }, []);
 
@@ -524,7 +550,7 @@ export default function Asistencia() {
                         </thead>
                         <tbody>
                           {pageRows.map((r, idx) => {
-                            const { label, cls } = etiquetaEstadoPersonal(r.estado);
+                            const { label, cls } = etiquetaEstadoResumen(r);
                             return (
                               <tr key={`${r.trabajador_id}-${r.cedula}-${idx}`}>
                                 <td className="text-slate-800">{r.nombre ?? "—"}</td>
