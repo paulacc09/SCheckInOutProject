@@ -3,9 +3,10 @@ import * as faceapi from "face-api.js";
 import { Loader2, X } from "lucide-react";
 
 /**
- * @param {{ modo: 'registrar' | 'identificar', onDescriptor?: (descriptor: number[]) => void, onIdentificado?: (descriptor: number[]) => void, onCerrar?: () => void }} props
+ * @param {{ modo: 'registrar' | 'identificar', onDescriptor?: (descriptor: number[]) => void, onIdentificado?: (descriptor: number[]) => void, onMatch?: (descriptor: number[]) => void, onCerrar?: () => void, onClose?: () => void }} props
  */
-export default function CamaraFacial({ modo, onDescriptor, onIdentificado, onCerrar }) {
+export default function CamaraFacial({ modo, onDescriptor, onIdentificado, onMatch, onCerrar, onClose }) {
+  const cerrarCamara = onClose ?? onCerrar;
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [modelosListos, setModelosListos] = useState(false);
@@ -88,7 +89,7 @@ export default function CamaraFacial({ modo, onDescriptor, onIdentificado, onCer
       if (modo === "registrar") {
         onDescriptor?.(descriptorArray);
       } else {
-        onIdentificado?.(descriptorArray);
+        (onMatch ?? onIdentificado)?.(descriptorArray);
       }
     } catch (e) {
       console.error(e);
@@ -100,10 +101,10 @@ export default function CamaraFacial({ modo, onDescriptor, onIdentificado, onCer
 
   return (
     <div className="relative rounded-xl bg-slate-900 p-4 text-white shadow-inner">
-      {onCerrar && (
+      {cerrarCamara && (
         <button
           type="button"
-          onClick={onCerrar}
+          onClick={cerrarCamara}
           className="absolute right-2 top-2 z-10 rounded-lg bg-slate-700 p-1.5 text-slate-200 hover:bg-slate-600"
           aria-label="Cerrar"
         >

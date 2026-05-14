@@ -1,6 +1,6 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import {
-  LayoutGrid, Users, Building2, MonitorSmartphone, ClipboardList,
+  Users, Building2, MonitorSmartphone, ClipboardList,
   FileBarChart2, FileText, ShieldCheck, AlertTriangle,
   ArrowLeftRight, UserCircle2, LogOut, UserCog2, Settings
 } from "lucide-react";
@@ -19,17 +19,17 @@ const NAV = {
     { to: "/admin/configuracion",  label: "Configuración",     icon: Settings },
   ],
   inspector_sst: [
-    { to: "/sst/asistencia",  label: "Asistencia",      icon: ClipboardList },
-    { to: "/sst/personal",    label: "Personal en obra",icon: Users },
-    { to: "/sst/novedades",   label: "Novedades",       icon: AlertTriangle },
-    { to: "/sst/reportes",    label: "Reportes",        icon: FileBarChart2 },
-    { to: "/sst/documentos",  label: "Documentos",      icon: FileText },
+    { to: "/sst/asistencia", label: "Asistencia", icon: ClipboardList },
+    { to: "/sst/personal", label: "Personal en obra", icon: Users },
+    { to: "/sst/novedades", label: "Novedades", icon: AlertTriangle },
+    { to: "/sst/reportes", label: "Reportes", icon: FileBarChart2 },
+    { to: "/sst/documentos", label: "Documentos", icon: FileText },
   ],
   encargado: [
     { to: "/encargado/asistencia", label: "Asistencia", icon: ClipboardList },
-    { to: "/encargado/personal",   label: "Personal",   icon: Users },
-    { to: "/encargado/novedades",  label: "Novedades",  icon: AlertTriangle },
-    { to: "/encargado/traspasos",  label: "Traspasos",  icon: ArrowLeftRight },
+    { to: "/encargado/personal", label: "Personal en obra", icon: Users },
+    { to: "/encargado/novedades", label: "Novedades", icon: AlertTriangle },
+    { to: "/encargado/traspasos", label: "Traspasos", icon: ArrowLeftRight },
   ],
 };
 
@@ -39,16 +39,29 @@ const TITULO_ROL = {
   encargado: "ENCARGADO",
 };
 
+const navLinkClass = ({ isActive }) =>
+  `flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[10px] text-center border-l-4 transition-colors ${
+    isActive
+      ? "bg-slate-100 text-slate-900 border-primary font-medium shadow-sm"
+      : "border-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+  }`;
+
 export default function Sidebar() {
   const { usuario, logout } = useAuth();
   if (!usuario) return null;
   const items = NAV[usuario.rol] || [];
+  const homePath =
+    usuario.rol === "administrador"
+      ? "/admin/obras"
+      : usuario.rol === "inspector_sst"
+        ? "/sst/asistencia"
+        : "/encargado/asistencia";
 
   return (
     <aside className="flex flex-col w-[108px] min-h-screen text-slate-200" style={{ background: "#1e2a4a" }}>
       {/* Branding */}
       <div className="px-2 py-5 border-b border-white/10">
-        <div className="flex flex-col items-center gap-2 text-center">
+        <Link to={homePath} className="flex flex-col items-center gap-2 text-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-white/40">
           <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-white" />
           </div>
@@ -58,7 +71,7 @@ export default function Sidebar() {
               {TITULO_ROL[usuario.rol] || ""}
             </div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Nav */}
@@ -67,13 +80,7 @@ export default function Sidebar() {
           <NavLink
             key={to}
             to={to}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[10px] text-center transition-colors ${
-                isActive
-                  ? "bg-[#2a4f88] text-white shadow-sm"
-                  : "text-slate-300 hover:bg-white/5 hover:text-white"
-              }`
-            }
+            className={navLinkClass}
           >
             <Icon className="w-4 h-4 shrink-0" />
             <span>{label}</span>
@@ -89,13 +96,11 @@ export default function Sidebar() {
             : usuario.rol === "inspector_sst" ? "/sst/perfil"
             : "/encargado/perfil"
           }
-          className="flex flex-col items-center gap-2 px-1 py-2 rounded-lg hover:bg-white/5"
+          className={navLinkClass}
         >
-          <UserCircle2 className="w-7 h-7 text-slate-300" />
+          <UserCircle2 className="w-7 h-7 shrink-0" />
           <div className="min-w-0 text-center">
-            <div className="text-[10px] font-medium text-white truncate">
-              {usuario.nombre}
-            </div>
+            <div className="text-[10px] font-medium truncate">{usuario.nombre}</div>
           </div>
         </NavLink>
         <button

@@ -1,25 +1,30 @@
-import { Bell, Settings, UserCircle2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Bell, Settings, User, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNotificaciones } from "../context/NotificacionesContext";
 
 export default function TopBar({ right, title }) {
   const { usuario } = useAuth();
   const { badge } = useNotificaciones();
-  const navigate = useNavigate();
   const esAdmin = usuario?.rol === "administrador";
+  const homePath =
+    usuario?.rol === "administrador"
+      ? "/admin/obras"
+      : usuario?.rol === "inspector_sst"
+        ? "/sst/asistencia"
+        : "/encargado/asistencia";
   const notifPath =
     usuario?.rol === "inspector_sst"
-      ? "/sst/novedades"
+      ? "/sst/notificaciones"
       : usuario?.rol === "encargado"
-        ? "/encargado/novedades"
+        ? "/encargado/notificaciones"
         : "/admin/notificaciones";
   const perfilPath =
     usuario?.rol === "administrador"
       ? "/admin/perfil"
       : usuario?.rol === "inspector_sst"
-        ? "/sst/personal"
-        : "/encargado/personal";
+        ? "/sst/perfil"
+        : "/encargado/perfil";
   const rolTitulo =
     usuario?.rol === "inspector_sst"
       ? "Inspector SST"
@@ -29,15 +34,22 @@ export default function TopBar({ right, title }) {
 
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200">
-      <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-800">
-        {title || ""}
+      <div className="flex items-center gap-3 min-w-0">
+        <Link
+          to={homePath}
+          className="shrink-0 flex items-center justify-center w-9 h-9 rounded-lg text-primary hover:bg-slate-100"
+          title="Inicio"
+        >
+          <ShieldCheck className="w-6 h-6" />
+        </Link>
+        <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-800 truncate">{title || ""}</div>
       </div>
       <div className="flex items-center gap-2">
         {right}
-        <button
+        <Link
+          to={notifPath}
           className="relative p-2 rounded-lg hover:bg-slate-100"
           title="Notificaciones"
-          onClick={() => navigate(notifPath)}
         >
           <Bell className="w-5 h-5 text-slate-600" />
           {badge > 0 && (
@@ -45,25 +57,25 @@ export default function TopBar({ right, title }) {
               {badge}
             </span>
           )}
-        </button>
+        </Link>
         {esAdmin && (
-          <button
+          <Link
+            to="/admin/configuracion"
             className="relative p-2 rounded-lg hover:bg-slate-100"
             title="Configuración"
-            onClick={() => navigate("/admin/configuracion")}
           >
             <Settings className="w-5 h-5 text-slate-600" />
-          </button>
+          </Link>
         )}
-        <button className="p-1 rounded-full hover:bg-slate-100" title="Perfil" onClick={() => navigate(perfilPath)}>
+        <Link to={perfilPath} className="p-1 rounded-full hover:bg-slate-100" title="Perfil">
           <div className="flex items-center gap-2">
-            <UserCircle2 className="w-8 h-8 text-slate-600" />
+            <User className="w-8 h-8 text-slate-600" />
             <div className="hidden md:block text-left">
               <div className="text-sm text-slate-700 leading-tight">{usuario?.nombre || "Usuario"}</div>
               <div className="text-xs text-slate-500 leading-tight">{rolTitulo}</div>
             </div>
           </div>
-        </button>
+        </Link>
       </div>
     </header>
   );

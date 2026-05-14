@@ -1,122 +1,92 @@
 # Conexión a base de datos y API
 
-El frontend usa **servicios en JavaScript** que hoy leen y escriben en un **store en memoria** (`checkinout-frontend/src/services/dataStore.js`). Los datos iniciales viven ahí para que **obras, personal, asistencias y documentos** sigan alineados entre pantallas.
+> **Estado actual:** el frontend habla con la **API real** en `checkinout-backend` mediante Axios (`checkinout-frontend/src/api/axios.js`). La descripción de un *store en memoria* (`dataStore.js`) **ya no aplica** como arquitectura principal.
 
-Cuando exista backend con base de datos, la persona encargada puede **sustituir solo el cuerpo de cada función** en los archivos indicados (manteniendo la misma firma y formato `{ ok, data }` / `{ ok: false, message }` que usa `serviceUtils.js`).
+Para el inventario oficial de rutas HTTP y variables de entorno del servidor, usa **[checkinout-backend/README.md](checkinout-backend/README.md)** y **[checkinout-frontend/README.md](checkinout-frontend/README.md)**.
 
----
-
-## Resumen por módulo
-
-| Módulo (pantalla) | Servicio | Store / origen de datos |
-|-------------------|----------|-------------------------|
-| Personal | `src/services/personalService.js` | `store.personal`, `store.obras` |
-| Roles y usuarios | `src/services/usuariosService.js` | `store.usuarios` |
-| Dispositivos | `src/services/dispositivosService.js` | `store.dispositivos` |
-| Asistencias | `src/services/asistenciasService.js` | `store.asistencias`, `store.personal`, `store.obras` |
-| Reportes | `src/services/reportesService.js` | Lee `store.asistencias` (mismo origen que asistencias) |
-| Documentos (admin) | `src/services/documentosService.js` | `store.documentos`, `store.personal` |
-| Mis obras | `src/services/obrasService.js` | `store.obras`, agrega stats con `personalService` y `store.asistencias` |
+Este archivo conserva **tablas de referencia** (nombres de endpoints “sugeridos” o históricos) y el formato de respuesta típico del backend.
 
 ---
 
-## Personal — `personalService.js`
+## Resumen por módulo (implementación real)
 
-| Función | Endpoint sugerido | Cuerpo / query |
-|---------|---------------------|----------------|
-| `getAll(filtros)` | `GET /api/personal?obra=&cargo=&estado=&search=` | Query: `obra`, `cargo`, `estado`, `search`. Respuesta: array de trabajadores. |
-| `getById(id)` | `GET /api/personal/:id` | — |
-| `create(datos)` | `POST /api/personal` | Body JSON: `{ nombre, documento, cargo, obra, correo, telefono, estado }` (`estado`: `activo` \| `inactivo`). |
-| `update(id, datos)` | `PUT /api/personal/:id` | Mismo shape parcial o completo. |
-| `remove(id)` | `DELETE /api/personal/:id` | — |
-
-Helpers locales (sin HTTP hoy): `getCargosOpciones()`, `listTrabajadoresParaSelect()` → en API serían `GET /api/personal?fields=minimal` o similar.
-
----
-
-## Usuarios y roles — `usuariosService.js`
-
-| Función | Endpoint sugerido | Notas |
-|---------|------------------|--------|
-| `getAll(filtros)` | `GET /api/usuarios?search=&rol=&estado=` | |
-| `getById(id)` | `GET /api/usuarios/:id` | |
-| `create(datos)` | `POST /api/usuarios` | Body: `{ nombre, correo, password, rol, obra, estado }`. **El backend debe hashear la contraseña.** |
-| `update(id, datos)` | `PUT /api/usuarios/:id` | Si `password` viene vacío al editar, no actualizar contraseña. |
-| `updateRol(id, rol)` | `PUT /api/usuarios/:id/rol` | Body: `{ rol }` |
-| `remove(id)` | `DELETE /api/usuarios/:id` | |
+| Módulo (pantalla) | Código principal | Origen de datos |
+|-------------------|------------------|-----------------|
+| Personal | `pages/admin/Personal.jsx` | `GET/POST/PUT/PATCH` sobre `/trabajadores`, `/obras`, `/subcargos` |
+| Roles y usuarios | `pages/admin/Roles.jsx` | `/usuarios`, `/obras` |
+| Dispositivos | `pages/admin/Dispositivos.jsx`, `services/dispositivosService.js` | `/dispositivos` (incluye `PATCH …/estado`) |
+| Asistencias | `pages/admin/Asistencias.jsx` | `/asistencia/...`, `/obras` |
+| Reportes | `pages/admin/Reportes.jsx`, `services/reportesService.js` | `GET /reportes/resumen` (+ otros en backend) |
+| Documentos | `pages/admin/Documentos.jsx`, `services/documentosService.js` | `/documentos`, `/trabajadores` |
+| Mis obras | `pages/admin/Obras.jsx` | `/obras`, `/obras/stats`, `/usuarios` |
+| Novedades | `pages/admin/Novedades.jsx` | `/novedades`, `PATCH /novedades/:id/resolver` (y `PATCH …/estado` en API) |
+| Traspasos (API) | — | `/traspasos` (ver backend; UI encargado según evolución del front) |
 
 ---
 
-## Dispositivos — `dispositivosService.js`
+## Personal / trabajadores
 
-| Función | Endpoint sugerido | Body / notas |
-|---------|------------------|--------------|
-| `getAll(filtros)` | `GET /api/dispositivos?search=&obra=&estado=` | Respuesta puede incluir `rows` y `stats` o calcular stats en front. |
-| `getById(id)` | `GET /api/dispositivos/:id` | |
-| `create(datos)` | `POST /api/dispositivos` | `{ nombre, tipo, obra, pin?, id? }` — si no hay `id`, generar `DEV-XXX` en servidor. |
-| `update(id, datos)` | `PUT /api/dispositivos/:id` | |
-| `updateEstado(id, estado)` | `PUT /api/dispositivos/:id/estado` | `{ estado: "Activo" \| "Inactivo" }` |
-| `remove(id)` | `DELETE /api/dispositivos/:id` | |
+En la API desplegada el recurso es **`/api/trabajadores`**, no `/api/personal`.
 
----
-
-## Asistencias — `asistenciasService.js`
-
-| Función | Endpoint sugerido | Body / query |
-|---------|------------------|--------------|
-| `getAll(filtros)` | `GET /api/asistencias?obra=&fecha=&estado=&search=` | |
-| `getById(id)` | `GET /api/asistencias/:id` | |
-| `create(datos)` | `POST /api/asistencias` | `{ trabajadorId, obra, fecha, ingreso?, salida?, estado? }` |
-| `update(id, datos)` | `PUT /api/asistencias/:id` | |
-| `remove(id)` | `DELETE /api/asistencias/:id` | |
-| `getAllRaw()` (uso interno / reportes) | `GET /api/asistencias` sin filtros o endpoint dedicado | |
+| Operación | Ruta típica |
+|-----------|-------------|
+| Listar | `GET /api/trabajadores` |
+| Detalle | `GET /api/trabajadores/:id` |
+| Crear / actualizar | `POST /api/trabajadores`, `PUT /api/trabajadores/:id` |
+| Estado | `PATCH /api/trabajadores/:id/estado` |
+| Descriptor facial | `PATCH /api/trabajadores/:id/descriptor` |
 
 ---
 
-## Reportes — `reportesService.js`
+## Usuarios y roles
 
-| Función | Endpoint sugerido | Respuesta esperada |
-|---------|------------------|-------------------|
-| `generar(filtros)` | `GET /api/reportes?obra=&estado=&fechaInicio=&fechaFin=` | `{ resumen: { totalRegistros, diasConAsistencia, ausenciasTotales, promedioDiario }, trabajadores: [{ id, nombre, obra, diasAsistidos, ausencias, horasTotales }], vacio?: boolean }` |
-
-Hoy el cálculo se hace en memoria leyendo `store.asistencias`.
+| Operación | Ruta típica |
+|-----------|-------------|
+| CRUD | `GET/POST/PUT/DELETE /api/usuarios` |
 
 ---
 
-## Documentos — `documentosService.js`
+## Dispositivos
 
-| Función | Endpoint sugerido | Notas |
-|---------|------------------|--------|
-| `getAll(filtros)` | `GET /api/documentos?tab=&tipo=&search=&estadoFiltro=` | `tab`: `Todos` \| `Vigentes` \| `Por vencer` \| `Vencidos`. |
-| `getById(id)` | `GET /api/documentos/:id` | |
-| `create(datos)` | `POST /api/documentos` | `multipart/form-data`: archivo + metadatos (`trabajadorId`, `tipo`, `emision`, `vencimiento`). |
-| `update(id, datos)` | `PUT /api/documentos/:id` | Metadatos; opcional nuevo archivo. |
-| `remove(id)` | `DELETE /api/documentos/:id` | |
-| `getAlertaPorVencer()` | p.ej. `GET /api/documentos/alertas/por-vencer` | Opcional; puede derivarse del listado. |
-| `calcularEstado(vencimiento)` | — | **En producción el estado debería calcularse en backend** con la fecha actual (Vigente / Por vencer ≤30 días / Vencido). |
+| Operación | Ruta típica |
+|-----------|-------------|
+| CRUD + estado | `GET/POST/PUT/DELETE /api/dispositivos`, `PATCH /api/dispositivos/:id/estado` |
 
 ---
 
-## Obras — `obrasService.js`
+## Asistencia (prefijo singular `/api/asistencia`)
 
-| Función | Endpoint sugerido | Body / notas |
-|---------|------------------|--------------|
-| `getAll(filtros)` | `GET /api/obras?search=&estado=` | |
-| `getById(id)` | `GET /api/obras/:id` | |
-| `getEstadisticas(id)` | `GET /api/obras/:id/estadisticas` | `{ trabajadoresActivos, porcentajeAsistencia }` |
-| `create(datos)` | `POST /api/obras` | `{ nombre, ubicacion, encargado, fechaInicio, estado }` |
-| `update(id, datos)` | `PUT /api/obras/:id` | |
-| `remove(id)` | `DELETE /api/obras/:id` | Validar en servidor que no haya trabajadores activos en esa obra. |
-| `getEncargadosOpciones()` | `GET /api/usuarios?rol=Encargado` o inclusión en `GET /api/obras/meta` | |
-| `getNombresObras()` | `GET /api/obras?fields=nombre` | Lista para dropdowns. |
+Ejemplos reales del backend: jornadas (`POST /jornada/abrir`, `PATCH /jornada/:id/cerrar`), `POST /registrar`, `GET /registros`, `GET /resumen-trabajadores`, etc. Las rutas en plural tipo `/api/asistencias` de diseños antiguos no coinciden con el montaje actual.
 
 ---
 
-## Formato de respuesta sugerido (front)
+## Reportes
 
-Los servicios actuales usan:
+El resumen usado por el front admin es **`GET /api/reportes/resumen`** con query `fecha_inicio`, `fecha_fin`, `obra_id` (ver `reportesService.js`). Otros endpoints: `/api/reportes/asistencia`, `/ausencias`, `/horas`, `POST /exportar`.
+
+---
+
+## Documentos
+
+| Operación | Ruta típica |
+|-----------|-------------|
+| Listar / crear / actualizar | `GET/POST/PUT /api/documentos` |
+
+---
+
+## Obras
+
+| Operación | Ruta típica |
+|-----------|-------------|
+| Listar, stats, CRUD, estado | `GET/POST/PUT/PATCH /api/obras`, `GET /api/obras/stats`, etc. |
+
+---
+
+## Formato de respuesta (API)
+
+Convención en `checkinout-backend/src/utils/response.js`:
 
 - Éxito: `{ ok: true, data: ... }`
-- Error: `{ ok: false, message: "texto" }`
+- Error: `{ ok: false, message: "..." }`
 
-Mantener algo equivalente al migrar a `fetch`/`axios` facilita no tocar los componentes.
+El cliente Axios suele leer `data` del cuerpo JSON de la respuesta HTTP.

@@ -1,132 +1,93 @@
-# Guía de instalación y configuración del proyecto
+# SCheckInOut — CheckInOut
 
-## Requisitos previos
-
-Antes de ejecutar el proyecto es necesario tener instalado:
-
-- Node.js
-- npm
-- Git
-
-Además, se requiere acceso a las credenciales de conexión de la base de datos configurada en Railway.
+Monorepo con **API Node/Express + MySQL** (`checkinout-backend`) y **SPA React/Vite** (`checkinout-frontend`) para control de asistencia y personal en obras.
 
 ---
 
-## Clonar el repositorio
+## Documentación por carpeta
 
-Ejecutar el siguiente comando en la terminal:
+| Documento | Contenido |
+|-------------|-----------|
+| [checkinout-backend/README.md](checkinout-backend/README.md) | API, variables de entorno, rutas, JWT, OAuth, integraciones (MySQL, Brevo, Cloudinary). |
+| [checkinout-frontend/README.md](checkinout-frontend/README.md) | React, `VITE_API_URL`, roles, rutas, pantallas y servicios. |
+| [README-DB.md](README-DB.md) | Referencia de contratos y equivalencias módulo ↔ API (histórico de nombres sugeridos). |
+
+---
+
+## Arquitectura rápida
+
+```
+[Navegador] → React (Vite) → Axios (Bearer JWT) → Express /api → MySQL
+```
+
+- El frontend usa `VITE_API_URL` apuntando a la base de la API **incluyendo** el sufijo `/api` (p. ej. `http://localhost:3000/api`).
+- Tras el login, el token se guarda en `localStorage` y se envía en `Authorization: Bearer …`.
+
+---
+
+## Requisitos
+
+- Node.js y npm  
+- Git  
+- MySQL accesible y esquema acorde a los controladores del backend  
+
+---
+
+## Clonar e instalar
 
 ```bash
 git clone https://github.com/paulacc09/SCheckInOutProject.git
-```
-
-Ingresar a la carpeta del proyecto:
-
-```bash
 cd SCheckInOutProject
 ```
 
----
-
-## Instalación del backend
-
-Ingresar a la carpeta del backend:
+### Backend
 
 ```bash
 cd checkinout-backend
-```
-
-Instalar las dependencias:
-
-```bash
 npm install
 ```
 
-Este comando instalará automáticamente todas las dependencias necesarias del proyecto.
-
-Crear un archivo `.env` con las siguientes variables:
-
-```env
-PORT=3000
-
-DB_HOST=
-DB_PORT=
-DB_USER=
-DB_PASSWORD=
-DB_NAME=
-
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_CALLBACK_URL=
-```
-
-Ejecutar el servidor backend:
+Crea `checkinout-backend/.env`. Lista detallada en [checkinout-backend/README.md](checkinout-backend/README.md). Mínimo habitual: `DB_*`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `FRONTEND_URL`; opcional según funciones: Google OAuth, Brevo, Cloudinary.
 
 ```bash
 npm run dev
 ```
 
-El backend se ejecutará localmente en:
+Servidor por defecto: `http://localhost:3000` — comprobar `GET http://localhost:3000/api/ping`.
 
-```txt
-http://localhost:3000
-```
-
----
-
-## Instalación del frontend
-
-Abrir una nueva terminal desde la raíz del proyecto e ingresar a la carpeta frontend:
+### Frontend
 
 ```bash
 cd checkinout-frontend
-```
-
-Instalar las dependencias:
-
-```bash
 npm install
 ```
 
-Este comando instalará automáticamente todas las dependencias necesarias del frontend.
+Crea `checkinout-frontend/.env.local`:
 
-Ejecutar el proyecto frontend:
+```env
+VITE_API_URL=http://localhost:3000/api
+```
 
 ```bash
 npm run dev
 ```
 
-El frontend se ejecutará localmente en:
-
-```txt
-http://localhost:5173
-```
+App por defecto: `http://localhost:5173`.
 
 ---
 
-## Despliegue del sistema
+## Despliegue
 
-El frontend del proyecto se encuentra desplegado mediante Vercel y la base de datos se encuentra alojada en Railway.
-
-El despliegue se actualiza automáticamente mediante los cambios enviados al repositorio de GitHub.
+- **Frontend:** Vercel (build `vite build`; rewrites SPA en `checkinout-frontend/vercel.json`). Definir `VITE_API_URL` con la URL pública del backend + `/api`.
+- **Base de datos:** suele usarse **Railway** (MySQL).
+- **Backend:** Railway, Render, VPS, etc.; configurar CORS al dominio del front y URLs de OAuth/correo coherentes con `FRONTEND_URL`.
 
 ---
 
-## Tecnologías utilizadas
+## Tecnologías (resumen)
 
-### Frontend
-- React
-- Vite
-- Tailwind CSS
-- Axios
+**Frontend:** React 18, Vite, Tailwind CSS, React Router, Axios, face-api.js, jsPDF, jspdf-autotable, lucide-react.
 
-### Backend
-- Node.js
-- Express.js
-- Passport.js
-- Google OAuth 2.0
-- MySQL
+**Backend:** Node.js, Express, Passport (Google OAuth 2.0), JWT, bcrypt, MySQL2, Multer, Cloudinary, Nodemailer/Brevo.
 
-### Servicios externos
-- Railway
-- Vercel
+**Servicios externos:** Railway, Vercel (según despliegue).
