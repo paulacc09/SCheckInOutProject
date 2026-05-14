@@ -1,40 +1,43 @@
 # Conexión a base de datos y API
 
-El frontend usa **servicios en JavaScript** que hoy leen y escriben en un **store en memoria** (`checkinout-frontend/src/services/dataStore.js`). Los datos iniciales viven ahí para que **obras, personal, asistencias y documentos** sigan alineados entre pantallas.
+> **Estado (2026):** el frontend **ya consume la API real** (`checkinout-backend`) vía Axios (`checkinout-frontend/src/api/axios.js`) y **no** usa un store en memoria global como arquitectura principal. Los apartados siguientes conservan **referencia de contratos** útiles al diseñar o ampliar endpoints; para el mapa actual de rutas HTTP, usa [checkinout-backend/README.md](checkinout-backend/README.md) y [checkinout-frontend/README.md](checkinout-frontend/README.md).
 
-Cuando exista backend con base de datos, la persona encargada puede **sustituir solo el cuerpo de cada función** en los archivos indicados (manteniendo la misma firma y formato `{ ok, data }` / `{ ok: false, message }` que usa `serviceUtils.js`).
-
----
-
-## Resumen por módulo
-
-| Módulo (pantalla) | Servicio | Store / origen de datos |
-|-------------------|----------|-------------------------|
-| Personal | `src/services/personalService.js` | `store.personal`, `store.obras` |
-| Roles y usuarios | `src/services/usuariosService.js` | `store.usuarios` |
-| Dispositivos | `src/services/dispositivosService.js` | `store.dispositivos` |
-| Asistencias | `src/services/asistenciasService.js` | `store.asistencias`, `store.personal`, `store.obras` |
-| Reportes | `src/services/reportesService.js` | Lee `store.asistencias` (mismo origen que asistencias) |
-| Documentos (admin) | `src/services/documentosService.js` | `store.documentos`, `store.personal` |
-| Mis obras | `src/services/obrasService.js` | `store.obras`, agrega stats con `personalService` y `store.asistencias` |
+El frontend usa **servicios y páginas** que llaman a la API con el formato habitual del backend `{ ok: true, data }` / `{ ok: false, message }` (ver `checkinout-backend/src/utils/response.js`).
 
 ---
 
-## Personal — `personalService.js`
+## Resumen por módulo (referencia; implementación actual)
 
-| Función | Endpoint sugerido | Cuerpo / query |
-|---------|---------------------|----------------|
-| `getAll(filtros)` | `GET /api/personal?obra=&cargo=&estado=&search=` | Query: `obra`, `cargo`, `estado`, `search`. Respuesta: array de trabajadores. |
-| `getById(id)` | `GET /api/personal/:id` | — |
-| `create(datos)` | `POST /api/personal` | Body JSON: `{ nombre, documento, cargo, obra, correo, telefono, estado }` (`estado`: `activo` \| `inactivo`). |
-| `update(id, datos)` | `PUT /api/personal/:id` | Mismo shape parcial o completo. |
-| `remove(id)` | `DELETE /api/personal/:id` | — |
+La implementación viva está en **`src/pages/admin/*`** y en **`src/services/*`** (ver [checkinout-frontend/README.md](checkinout-frontend/README.md)). La tabla siguiente conserva nombres de módulos lógicos y endpoints de ejemplo; ignora las rutas de archivos antiguas si ya no existen en el repo.
 
-Helpers locales (sin HTTP hoy): `getCargosOpciones()`, `listTrabajadoresParaSelect()` → en API serían `GET /api/personal?fields=minimal` o similar.
+| Módulo (pantalla) | Dónde está hoy (orientativo) | Origen de datos |
+|-------------------|------------------------------|-----------------|
+| Personal | `pages/admin/Personal.jsx` | API `/trabajadores`, `/obras`, `/subcargos` |
+| Roles y usuarios | `pages/admin/Roles.jsx` | API `/usuarios`, `/obras` |
+| Dispositivos | `pages/admin/Dispositivos.jsx`, `services/dispositivosService.js` | API `/dispositivos`, `/obras` |
+| Asistencias | `pages/admin/Asistencias.jsx` | API `/asistencia/...`, `/obras` |
+| Reportes | `pages/admin/Reportes.jsx`, `services/reportesService.js` | API `/reportes/...`, `/obras` |
+| Documentos (admin) | `pages/admin/Documentos.jsx`, `services/documentosService.js` | API `/documentos`, `/trabajadores` |
+| Mis obras | `pages/admin/Obras.jsx` | API `/obras`, `/obras/stats`, `/usuarios` |
 
 ---
 
-## Usuarios y roles — `usuariosService.js`
+## Personal (trabajadores en la API real)
+
+En el backend actual el recurso es **`/api/trabajadores`** (no `/personal`). La tabla siguiente conserva el naming antiguo “personal” solo como equivalencia conceptual.
+
+| Operación | En la API CheckInOut | Notas |
+|-----------|----------------------|--------|
+| Listar | `GET /api/trabajadores` | Con JWT; filtros según implementación del controlador |
+| Detalle | `GET /api/trabajadores/:id` | |
+| Crear / actualizar | `POST /api/trabajadores`, `PUT /api/trabajadores/:id` | Ver `trabajadores.controller.js` |
+| Estado | `PATCH /api/trabajadores/:id/estado` | |
+| Descriptor facial | `PATCH /api/trabajadores/:id/descriptor` | Usado desde `Personal.jsx` |
+| Catálogo subcargos | `GET /api/subcargos` | |
+
+---
+
+## Usuarios y roles (`pages/admin/Roles.jsx` → `/api/usuarios`)
 
 | Función | Endpoint sugerido | Notas |
 |---------|------------------|--------|
@@ -47,7 +50,7 @@ Helpers locales (sin HTTP hoy): `getCargosOpciones()`, `listTrabajadoresParaSele
 
 ---
 
-## Dispositivos — `dispositivosService.js`
+## Dispositivos (`services/dispositivosService.js`)
 
 | Función | Endpoint sugerido | Body / notas |
 |---------|------------------|--------------|
@@ -55,35 +58,34 @@ Helpers locales (sin HTTP hoy): `getCargosOpciones()`, `listTrabajadoresParaSele
 | `getById(id)` | `GET /api/dispositivos/:id` | |
 | `create(datos)` | `POST /api/dispositivos` | `{ nombre, tipo, obra, pin?, id? }` — si no hay `id`, generar `DEV-XXX` en servidor. |
 | `update(id, datos)` | `PUT /api/dispositivos/:id` | |
-| `updateEstado(id, estado)` | `PUT /api/dispositivos/:id/estado` | `{ estado: "Activo" \| "Inactivo" }` |
+| `updateEstado(id, estado)` | `PATCH /api/dispositivos/:id/estado` | En el backend real es **PATCH**, no PUT. |
 | `remove(id)` | `DELETE /api/dispositivos/:id` | |
 
 ---
 
-## Asistencias — `asistenciasService.js`
+## Asistencias (en la API real: prefijo `/api/asistencia`)
 
-| Función | Endpoint sugerido | Body / query |
-|---------|------------------|--------------|
-| `getAll(filtros)` | `GET /api/asistencias?obra=&fecha=&estado=&search=` | |
-| `getById(id)` | `GET /api/asistencias/:id` | |
-| `create(datos)` | `POST /api/asistencias` | `{ trabajadorId, obra, fecha, ingreso?, salida?, estado? }` |
-| `update(id, datos)` | `PUT /api/asistencias/:id` | |
-| `remove(id)` | `DELETE /api/asistencias/:id` | |
-| `getAllRaw()` (uso interno / reportes) | `GET /api/asistencias` sin filtros o endpoint dedicado | |
+| Concepto | Endpoints reales (ver backend) |
+|----------|--------------------------------|
+| Jornadas | `POST /api/asistencia/jornada/abrir`, `PATCH /api/asistencia/jornada/:id/cerrar` |
+| Registro | `POST /api/asistencia/registrar` |
+| Consultas | `GET /api/asistencia/jornadas`, `GET /api/asistencia/resumen`, `GET /api/asistencia/registros`, `GET /api/asistencia/resumen-trabajadores` |
+
+Las rutas tipo `/api/asistencias` de la tabla antigua **no** coinciden con el montaje actual (`/asistencia` en singular).
 
 ---
 
-## Reportes — `reportesService.js`
+## Reportes (`services/reportesService.js`)
 
 | Función | Endpoint sugerido | Respuesta esperada |
 |---------|------------------|-------------------|
-| `generar(filtros)` | `GET /api/reportes?obra=&estado=&fechaInicio=&fechaFin=` | `{ resumen: { totalRegistros, diasConAsistencia, ausenciasTotales, promedioDiario }, trabajadores: [{ id, nombre, obra, diasAsistidos, ausencias, horasTotales }], vacio?: boolean }` |
+| `generar(filtros)` | `GET /api/reportes/resumen` (y otros bajo `/api/reportes/`) | Ver `reportes.controller.js` |
 
-Hoy el cálculo se hace en memoria leyendo `store.asistencias`.
+El front usa la API; no hay cálculo de reportes solo en un store local.
 
 ---
 
-## Documentos — `documentosService.js`
+## Documentos (`services/documentosService.js`)
 
 | Función | Endpoint sugerido | Notas |
 |---------|------------------|--------|
@@ -97,7 +99,7 @@ Hoy el cálculo se hace en memoria leyendo `store.asistencias`.
 
 ---
 
-## Obras — `obrasService.js`
+## Obras (`pages/admin/Obras.jsx`)
 
 | Función | Endpoint sugerido | Body / notas |
 |---------|------------------|--------------|
@@ -112,11 +114,11 @@ Hoy el cálculo se hace en memoria leyendo `store.asistencias`.
 
 ---
 
-## Formato de respuesta sugerido (front)
+## Formato de respuesta (API y front)
 
-Los servicios actuales usan:
+Convención usada en el backend (`src/utils/response.js`) y asumida por el cliente:
 
 - Éxito: `{ ok: true, data: ... }`
 - Error: `{ ok: false, message: "texto" }`
 
-Mantener algo equivalente al migrar a `fetch`/`axios` facilita no tocar los componentes.
+El proyecto ya usa **Axios** con este criterio de cuerpos de respuesta.
