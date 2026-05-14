@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 import TopBar from "../../components/TopBar";
 import PaginationBar from "../../components/PaginationBar";
 import FlashBanner from "../../components/FlashBanner";
+import EmptyState from "../../components/EmptyState";
 import { paginate } from "../../services/pagination";
 import * as reportesService from "../../services/reportesService";
 import api from "../../api/axios";
@@ -14,6 +15,27 @@ const PAGE_SIZE_DEFAULT = 2;
 
 function fileStamp() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatearValor(v) {
+  if (v === null || v === undefined) return "—";
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) {
+    const d = new Date(s);
+    return d.toLocaleString("es-CO", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  return s;
 }
 
 export default function Reportes() {
@@ -32,6 +54,7 @@ export default function Reportes() {
   const [filtrosAplicados, setFiltrosAplicados] = useState({ obra: "", estado: "", fi: "", ff: "" });
 
   const pageSize = generated ? PAGE_SIZE_GENERATED : PAGE_SIZE_DEFAULT;
+  const hoyISO = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     (async () => {
@@ -190,12 +213,18 @@ export default function Reportes() {
             </div>
             <div>
               <label className="label">Fecha Inicio</label>
-              <input type="date" className="input w-full" value={fi} onChange={(e) => setFi(e.target.value)} />
+              <input type="date" className="input w-full" value={fi} onChange={(e) => setFi(e.target.value)} max={hoyISO} />
             </div>
             <div className="flex items-end justify-center pb-2 text-slate-400 font-medium hidden lg:flex">—</div>
             <div>
               <label className="label">Fecha Fin</label>
-              <input type="date" className="input w-full" value={ff} onChange={(e) => setFf(e.target.value)} />
+              <input
+                type="date"
+                className="input w-full"
+                value={ff}
+                onChange={(e) => setFf(e.target.value)}
+                max={hoyISO}
+              />
             </div>
             <div className="lg:col-span-1">
               <label className="label opacity-0 pointer-events-none hidden lg:block">Generar</label>
@@ -237,7 +266,9 @@ export default function Reportes() {
         </div>
 
         {generated && vacio ? (
-          <p className="text-slate-600">No hay resultados para los filtros seleccionados.</p>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <EmptyState title="Sin datos" message="El reporte no devolvió resultados para los filtros seleccionados." />
+          </div>
         ) : (
           <>
             <div className="table-wrap rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -255,12 +286,12 @@ export default function Reportes() {
                 <tbody>
                   {pageRows.map((r, idx) => (
                     <tr key={`${r.id}-${idx}`} className={idx % 2 ? "bg-slate-50/50" : ""}>
-                      <td>{r.id}</td>
-                      <td>{r.nombre}</td>
-                      <td>{r.obra}</td>
-                      <td>{r.diasAsistidos}</td>
-                      <td>{r.ausencias}</td>
-                      <td>{r.horasTotales}</td>
+                      <td>{formatearValor(r.id)}</td>
+                      <td>{formatearValor(r.nombre)}</td>
+                      <td>{formatearValor(r.obra)}</td>
+                      <td>{formatearValor(r.diasAsistidos)}</td>
+                      <td>{formatearValor(r.ausencias)}</td>
+                      <td>{formatearValor(r.horasTotales)}</td>
                     </tr>
                   ))}
                 </tbody>

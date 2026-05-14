@@ -13,6 +13,7 @@ const TIPOS_NOVEDAD = [
 
 const listar = async (req, res) => {
   try {
+    const { obra_id } = req.query;
     let query = `
 SELECT n.*, 
   CONCAT(t.nombre,' ',t.apellido) AS trabajador_nombre,
@@ -29,6 +30,10 @@ WHERE n.empresa_id = ?
     if (req.query.estado) {
       query += ' AND n.estado = ?';
       params.push(req.query.estado);
+    }
+    if (obra_id) {
+      query += ' AND n.obra_id = ?';
+      params.push(obra_id);
     }
     query += ' ORDER BY n.created_at DESC';
     const [rows] = await db.query(query, params);
@@ -111,6 +116,7 @@ const crear = async (req, res) => {
 
     return success(res, { id: result.insertId }, 201);
   } catch (err) {
+    console.error('ERROR NOVEDADES:', err.message, err.code);
     return error(res, err.message, 500);
   }
 };
@@ -182,4 +188,25 @@ const resolver = async (req, res) => {
   }
 };
 
-module.exports = { listar, crear, resolver };
+const actualizarEstado = async (req, res) => {
+  const { estado, observacion_resolucion } = req.body;
+  const estadosValidos = ['abierta', 'en_gestion', 'cerrada'];
+  if (!estadosValidos.includes(estado)) return error(res, 'estado inválido');
+  try {
+    const [result] = await db.query(
+      `UPDATE novedades 
+       SET estado = ?,
+           resuelto_por = ?,
+           fecha_resolucion = NOW(),
+           observacion_resolucion = ?
+       WHERE id = ? AND empresa_id = ?`,
+      [estado, req.usuario.id, observacion_resolucion || null, req.params.id, req.usuario.empresa_id]
+    );
+    if (!result.affectedRows) return error(res, 'Novedad no encontrada', 404);
+    return success(res, { mensaje: 'Estado actualizado' });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+};
+
+module.exports = { listar, crear, resolver, actualizarEstado };

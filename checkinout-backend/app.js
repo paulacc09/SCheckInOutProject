@@ -24,6 +24,8 @@ app.use('/api/trabajadores', require('./src/routes/trabajadores.routes'));
 app.use('/api/obras', require('./src/routes/obras.routes'));
 app.use('/api/subcargos', require('./src/routes/subcargos.routes'));
 app.use('/api/asistencia', require('./src/routes/asistencia.routes'));
+app.use('/api/novedades', require('./src/routes/novedades.routes'));
+app.use('/api/traspasos', require('./src/routes/traspasos.routes'));
 app.use('/api/reportes', require('./src/routes/reportes.routes'));
 app.use('/api/usuarios', require('./src/routes/usuarios.routes'));
 app.use('/api/novedades', novedadesRoutes);

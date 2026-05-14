@@ -29,12 +29,16 @@ import SstPersonal from "./pages/inspector/Personal";
 import SstNovedades from "./pages/inspector/Novedades";
 import SstReportes from "./pages/inspector/Reportes";
 import SstDocumentos from "./pages/inspector/Documentos";
+import SstPerfil from "./pages/admin/Perfil";
+import SstNotificaciones from "./pages/admin/Notificaciones";
 
 // Encargado
 import EncAsistencia from "./pages/encargado/Asistencia";
 import EncPersonal from "./pages/encargado/Personal";
 import EncNovedades from "./pages/encargado/Novedades";
 import EncTraspasos from "./pages/encargado/Traspasos";
+import EncPerfil from "./pages/admin/Perfil";
+import EncNotificaciones from "./pages/admin/Notificaciones";
 
 export default function App() {
   return (
@@ -83,6 +87,8 @@ export default function App() {
             <Route path="/sst/novedades" element={<SstNovedades />} />
             <Route path="/sst/reportes" element={<SstReportes />} />
             <Route path="/sst/documentos" element={<SstDocumentos />} />
+            <Route path="/sst/perfil" element={<SstPerfil />} />
+            <Route path="/sst/notificaciones" element={<SstNotificaciones />} />
           </Route>
 
           {/* ENCARGADO */}
@@ -97,6 +103,8 @@ export default function App() {
             <Route path="/encargado/personal" element={<EncPersonal />} />
             <Route path="/encargado/novedades" element={<EncNovedades />} />
             <Route path="/encargado/traspasos" element={<EncTraspasos />} />
+            <Route path="/encargado/perfil" element={<EncPerfil />} />
+            <Route path="/encargado/notificaciones" element={<EncNotificaciones />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />

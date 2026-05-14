@@ -46,6 +46,42 @@ const obtenerRowsAusencias = async ({ fecha, obra_id, empresa_id }) => {
   return rows;
 };
 
+const obtenerRowsAusenciasRango = async ({ fecha_inicio, fecha_fin, obra_id, empresa_id }) => {
+  const fechaDesde = fecha_inicio || new Date().toISOString().split('T')[0];
+  const fechaHasta = fecha_fin || fechaDesde;
+  let query = `
+      SELECT 
+        t.id,
+        CONCAT(t.nombre,' ',t.apellido) AS trabajador,
+        t.cedula,
+        COUNT(DISTINCT fechas.fecha) AS total_ausencias
+      FROM trabajadores t
+      JOIN (
+        SELECT DISTINCT DATE(timestamp) AS fecha, obra_id
+        FROM registros_asistencia
+        WHERE DATE(timestamp) BETWEEN ? AND ?
+        ${obra_id ? 'AND obra_id = ?' : ''}
+      ) AS fechas ON 1=1
+      WHERE t.empresa_id = ? AND t.estado = 'activo'
+      AND NOT EXISTS (
+        SELECT 1 FROM registros_asistencia r
+        WHERE r.trabajador_id = t.id
+          AND DATE(r.timestamp) = fechas.fecha
+          AND r.tipo = 'ingreso'
+          ${obra_id ? 'AND r.obra_id = ?' : ''}
+      )
+      GROUP BY t.id
+      HAVING total_ausencias > 0
+      ORDER BY total_ausencias DESC
+    `;
+  const params = [fechaDesde, fechaHasta];
+  if (obra_id) params.push(obra_id);
+  params.push(empresa_id);
+  if (obra_id) params.push(obra_id);
+  const [rows] = await db.query(query, params);
+  return rows;
+};
+
 const obtenerRowsHorasTrabajadas = async ({ fecha_inicio, fecha_fin, obra_id, empresa_id }) => {
   let query = `
       SELECT 
@@ -84,8 +120,17 @@ const asistenciaDiaria = async (req, res) => {
 };
 
 const ausencias = async (req, res) => {
-  const { fecha, obra_id } = req.query;
+  const { fecha, fecha_inicio, fecha_fin, obra_id } = req.query;
   try {
+    if (fecha_inicio || fecha_fin) {
+      const rows = await obtenerRowsAusenciasRango({
+        fecha_inicio,
+        fecha_fin,
+        obra_id,
+        empresa_id: req.usuario.empresa_id,
+      });
+      return success(res, rows);
+    }
     const fechaUsada = fecha || new Date().toISOString().split('T')[0];
     const rows = await obtenerRowsAusencias({
       fecha: fechaUsada,
