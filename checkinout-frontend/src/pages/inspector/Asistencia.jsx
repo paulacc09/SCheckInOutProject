@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
 import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
@@ -32,6 +32,17 @@ const etiquetaEstadoPersonal = (estado) => {
   return { label: "Presente", cls: "bg-green-500 text-white rounded px-2 py-0.5 text-xs" };
 };
 
+function tieneDescriptorFacial(t) {
+  const d = t?.descriptor_facial ?? t?.descriptor;
+  if (d == null) return false;
+  if (typeof d === "string") return d.trim().length > 0;
+  return Array.isArray(d) && d.length > 0;
+}
+
+function descriptorParaCamara(t) {
+  return t?.descriptor_facial ?? t?.descriptor ?? null;
+}
+
 export default function Asistencia() {
   const { usuario } = useAuth();
   const [obra, setObra] = useState(null);
@@ -44,7 +55,13 @@ export default function Asistencia() {
   const [mensajeMarcaje, setMensajeMarcaje] = useState(null);
   const [errorJornada, setErrorJornada] = useState("");
   const [mostrarBiometrico, setMostrarBiometrico] = useState(false);
+  const [pendienteRegistro, setPendienteRegistro] = useState(null);
+  const [modoCamara, setModoCamara] = useState(null);
+  const [trabajadorActual, setTrabajadorActual] = useState(null);
   const [page, setPage] = useState(1);
+  const pendRef = useRef(null);
+  const trabRef = useRef(null);
+  const modoCamaraRef = useRef(null);
 
   const cargarResumen = useCallback(async (obraId) => {
     if (!obraId) {
@@ -133,13 +150,25 @@ export default function Asistencia() {
     setPage(1);
   }, [obra?.id]);
 
+  useEffect(() => {
+    modoCamaraRef.current = modoCamara;
+  }, [modoCamara]);
+
+  useEffect(() => {
+    pendRef.current = pendienteRegistro;
+  }, [pendienteRegistro]);
+
+  useEffect(() => {
+    trabRef.current = trabajadorActual;
+  }, [trabajadorActual]);
+
   const abrirJornada = async () => {
     if (!obra?.id) return;
     setErrorJornada("");
     try {
       await api.post("/asistencia/jornada/abrir", { obra_id: obra.id });
       await refrescarJornada(obra.id);
-      await cargarResumen(obra.id);
+      await cargarResumen(obra?.id);
     } catch (err) {
       setErrorJornada(
         err.response?.data?.mensaje ||
@@ -156,7 +185,7 @@ export default function Asistencia() {
     try {
       await api.patch(`/asistencia/jornada/${jornada.id}/cerrar`);
       setJornada(null);
-      await cargarResumen(obra.id);
+      await cargarResumen(obra?.id);
     } catch (err) {
       setErrorJornada(
         err.response?.data?.mensaje ||
@@ -166,89 +195,181 @@ export default function Asistencia() {
     }
   };
 
-  const armarMensajeExito = (nombreTrabajador, ts, obraNombre) => {
-    const hora = horaCorta(ts);
-    return `${nombreTrabajador} - ${hora} - ${obraNombre}`;
+  const buscarTrabajadorPorCedula = async (doc) => {
+    const { data } = await api.get(`/trabajadores/cedula/${encodeURIComponent(doc)}`);
+    return data?.data ?? null;
   };
 
-  const registrarMarcaje = async (tipo) => {
-    if (!cedula.trim()) {
-      setMensajeMarcaje({ tipo: "error", texto: "Ingresa el documento del trabajador." });
+  const completarRegistro = async (ced, tipo, metodo) => {
+    if (!obra?.id) return;
+    const { data: body } = await api.post("/asistencia/registrar", {
+      cedula: ced,
+      tipo,
+      obra_id: obra.id,
+      metodo,
+    });
+    const respuesta = body?.data ?? body;
+    const horaStr = new Date().toLocaleTimeString("es-CO", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    setMensajeMarcaje({
+      tipo: "success",
+      texto: `${respuesta?.trabajador ?? ced} - ${horaStr} - ${obra.nombre}`,
+    });
+    setCedula("");
+    setPendienteRegistro(null);
+    pendRef.current = null;
+    setTrabajadorActual(null);
+    trabRef.current = null;
+    await cargarResumen(obra.id);
+  };
+
+  const iniciarRegistro = async (tipo) => {
+    const docRaw = cedula.trim();
+    if (!docRaw) {
+      setMensajeMarcaje({ tipo: "error", texto: "Ingresa el documento" });
       return;
     }
     if (!obra?.id) return;
-
-    const doc = cedula.trim();
     setMarcando(true);
     try {
-      const { data: body } = await api.post("/asistencia/registrar", {
-        cedula: doc,
-        tipo,
-        obra_id: obra.id,
-        metodo: "cedula",
-      });
-      const respuesta = body?.data ?? body;
-      const ts = respuesta?.timestamp ?? new Date().toISOString();
-      const rows = await cargarResumen(obra.id);
-      const match = rows.find((r) => String(r.cedula) === String(doc));
-      const nombreTrab = match?.nombre || doc;
-      setMensajeMarcaje({
-        tipo: "success",
-        texto: armarMensajeExito(nombreTrab, ts, obra.nombre),
-      });
-      setCedula("");
+      let trab;
+      try {
+        trab = await buscarTrabajadorPorCedula(docRaw);
+      } catch (err) {
+        if (err.response?.status === 404) {
+          setMensajeMarcaje({ tipo: "error", texto: "Trabajador no encontrado" });
+          return;
+        }
+        throw err;
+      }
+      if (!trab) {
+        setMensajeMarcaje({ tipo: "error", texto: "Trabajador no encontrado" });
+        return;
+      }
+      setTrabajadorActual(trab);
+      trabRef.current = trab;
+      if (tieneDescriptorFacial(trab)) {
+        const pend = { cedula: docRaw, tipo };
+        setPendienteRegistro(pend);
+        pendRef.current = pend;
+        setModoCamara("verificar");
+        modoCamaraRef.current = "verificar";
+        setMostrarBiometrico(true);
+      } else {
+        await completarRegistro(docRaw, tipo, "cedula");
+      }
     } catch (err) {
       setMensajeMarcaje({
         tipo: "error",
         texto:
-          err.response?.data?.mensaje ||
-            err.response?.data?.message ||
-            "Error al registrar",
+          err.response?.data?.message ||
+            err.response?.data?.mensaje ||
+            "Error al buscar trabajador",
       });
     } finally {
       setMarcando(false);
     }
   };
 
-  const handleBiometrico = async (trabajador) => {
-    if (!obra?.id) return;
-    const { data: body } = await api.post("/asistencia/registrar", {
-      cedula: trabajador.cedula,
-      tipo: "ingreso",
-      obra_id: obra.id,
-      metodo: "facial",
-    });
-    const respuesta = body?.data ?? body;
-    const ts = respuesta?.timestamp ?? new Date().toISOString();
-    await cargarResumen(obra.id);
-    const nombreTrab = [trabajador.nombre, trabajador.apellido].filter(Boolean).join(" ") || trabajador.cedula;
-    setMensajeMarcaje({
-      tipo: "success",
-      texto: armarMensajeExito(nombreTrab, ts, obra.nombre),
-    });
-  };
-
-  const onMatchDescriptor = async (descriptor) => {
-    if (!obra?.id) return;
+  const handleBiometricoVerify = async () => {
+    const pend = pendRef.current;
+    setMostrarBiometrico(false);
+    setModoCamara(null);
+    modoCamaraRef.current = null;
+    pendRef.current = null;
+    setPendienteRegistro(null);
+    if (!pend || !obra?.id) return;
     try {
-      const { data: res } = await api.post("/trabajadores/identificar-rostro", { descriptor });
-      const inner = res?.data ?? res;
-      const trabajador = inner?.trabajador;
-      if (!trabajador?.cedula) {
-        setMensajeMarcaje({ tipo: "error", texto: "No se reconoció al trabajador." });
-        return;
-      }
-      await handleBiometrico(trabajador);
+      await completarRegistro(pend.cedula, pend.tipo, "facial");
     } catch (err) {
       setMensajeMarcaje({
         tipo: "error",
         texto:
-          err.response?.data?.mensaje ||
-            err.response?.data?.message ||
-            "Error en registro biométrico",
+          err.response?.data?.message || err.response?.data?.mensaje || "Error al registrar",
       });
+    }
+  };
+
+  const handleBiometricoRegistrar = async (descriptor) => {
+    const trab = trabRef.current ?? trabajadorActual;
+    if (!trab?.id) return;
+    const nombre = [trab.nombre, trab.apellido].filter(Boolean).join(" ").trim() || trab.cedula;
+    try {
+      await api.patch(`/trabajadores/${trab.id}/descriptor`, { descriptor });
+      setMensajeMarcaje({
+        tipo: "success",
+        texto: `Biométrico registrado correctamente para ${nombre}`,
+      });
+    } catch (err) {
+      setMensajeMarcaje({ tipo: "error", texto: "No se pudo guardar el biométrico" });
     } finally {
       setMostrarBiometrico(false);
+      setModoCamara(null);
+      modoCamaraRef.current = null;
+    }
+  };
+
+  const cerrarCamaraFacial = () => {
+    const m = modoCamaraRef.current;
+    const p = pendRef.current;
+    setMostrarBiometrico(false);
+    setModoCamara(null);
+    modoCamaraRef.current = null;
+    if (m === "verificar" && p) {
+      setMensajeMarcaje({ tipo: "error", texto: "No se pudo verificar identidad biométrica" });
+    }
+    setPendienteRegistro(null);
+    pendRef.current = null;
+    if (m === "verificar") {
+      setTrabajadorActual(null);
+      trabRef.current = null;
+    }
+  };
+
+  const abrirRegistrarBiometrico = async () => {
+    const docRaw = cedula.trim();
+    if (!docRaw) {
+      setMensajeMarcaje({ tipo: "error", texto: "Ingresa el documento primero" });
+      return;
+    }
+    try {
+      let trab;
+      try {
+        trab = await buscarTrabajadorPorCedula(docRaw);
+      } catch (err) {
+        if (err.response?.status === 404) {
+          setMensajeMarcaje({ tipo: "error", texto: "Trabajador no encontrado" });
+          return;
+        }
+        throw err;
+      }
+      if (!trab) {
+        setMensajeMarcaje({ tipo: "error", texto: "Trabajador no encontrado" });
+        return;
+      }
+      if (tieneDescriptorFacial(trab)) {
+        setMensajeMarcaje({
+          tipo: "error",
+          texto: "Este trabajador ya tiene un biométrico registrado.",
+        });
+        return;
+      }
+      setTrabajadorActual(trab);
+      trabRef.current = trab;
+      setModoCamara("registrar");
+      modoCamaraRef.current = "registrar";
+      setMostrarBiometrico(true);
+    } catch (err) {
+      setMensajeMarcaje({
+        tipo: "error",
+        texto:
+          err.response?.data?.message ||
+            err.response?.data?.mensaje ||
+            "Error al buscar trabajador",
+      });
     }
   };
 
@@ -340,7 +461,7 @@ export default function Asistencia() {
                     type="button"
                     className="btn btn-primary flex-1"
                     disabled={marcando}
-                    onClick={() => registrarMarcaje("ingreso")}
+                    onClick={() => iniciarRegistro("ingreso")}
                   >
                     Registrar Ingreso
                   </button>
@@ -348,7 +469,7 @@ export default function Asistencia() {
                     type="button"
                     className="btn btn-outline flex-1"
                     disabled={marcando}
-                    onClick={() => registrarMarcaje("salida")}
+                    onClick={() => iniciarRegistro("salida")}
                   >
                     Registrar salida
                   </button>
@@ -358,18 +479,15 @@ export default function Asistencia() {
                   <span className="text-xs text-gray-400">Biometría</span>
                   <hr className="flex-1" />
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-outline w-full"
-                  onClick={() => setMostrarBiometrico(true)}
-                >
+                <button type="button" className="btn btn-outline w-full" onClick={abrirRegistrarBiometrico}>
                   Registrar biométrico
                 </button>
-                {mostrarBiometrico && (
+                {mostrarBiometrico && modoCamara && (
                   <CamaraFacial
-                    modo="identificar"
-                    onMatch={onMatchDescriptor}
-                    onClose={() => setMostrarBiometrico(false)}
+                    modo={modoCamara}
+                    descriptor={modoCamara === "verificar" ? descriptorParaCamara(trabajadorActual) : undefined}
+                    onMatch={modoCamara === "verificar" ? handleBiometricoVerify : handleBiometricoRegistrar}
+                    onClose={cerrarCamaraFacial}
                   />
                 )}
                 {mensajeMarcaje !== null && (

@@ -1,17 +1,48 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
 import { Loader2, X } from "lucide-react";
 
+const UMBRAL_VERIFICACION = 0.6;
+
+function parseDescriptorArray(raw) {
+  if (raw == null) return null;
+  if (Array.isArray(raw) && raw.length) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) && arr.length ? arr : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function distanciaL2(a, b) {
+  if (!a?.length || !b?.length || a.length !== b.length) return Infinity;
+  return Math.sqrt(a.reduce((sum, v, i) => sum + (v - b[i]) ** 2, 0));
+}
+
 /**
- * @param {{ modo: 'registrar' | 'identificar', onDescriptor?: (descriptor: number[]) => void, onIdentificado?: (descriptor: number[]) => void, onMatch?: (descriptor: number[]) => void, onCerrar?: () => void, onClose?: () => void }} props
+ * @param {{
+ *   modo: 'registrar' | 'identificar' | 'verificar',
+ *   descriptor?: number[] | string | null,
+ *   onDescriptor?: (descriptor: number[]) => void,
+ *   onIdentificado?: (descriptor: number[]) => void,
+ *   onMatch?: (descriptor: number[]) => void,
+ *   onCerrar?: () => void,
+ *   onClose?: () => void,
+ * }} props
  */
-export default function CamaraFacial({ modo, onDescriptor, onIdentificado, onMatch, onCerrar, onClose }) {
+export default function CamaraFacial({ modo, descriptor, onDescriptor, onIdentificado, onMatch, onCerrar, onClose }) {
   const cerrarCamara = onClose ?? onCerrar;
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [modelosListos, setModelosListos] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [capturando, setCapturando] = useState(false);
+
+  const refDescriptor = useMemo(() => parseDescriptorArray(descriptor), [descriptor]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,11 +117,27 @@ export default function CamaraFacial({ modo, onDescriptor, onIdentificado, onMat
         return;
       }
       const descriptorArray = Array.from(detection.descriptor);
-      if (modo === "registrar") {
-        onDescriptor?.(descriptorArray);
-      } else {
+
+      if (modo === "verificar") {
+        if (!refDescriptor?.length) {
+          setErrorMsg("Descriptor de referencia no disponible.");
+          return;
+        }
+        const dist = distanciaL2(descriptorArray, refDescriptor);
+        if (dist > UMBRAL_VERIFICACION) {
+          setErrorMsg("Rostro no coincide con el registrado");
+          return;
+        }
         (onMatch ?? onIdentificado)?.(descriptorArray);
+        return;
       }
+
+      if (modo === "registrar") {
+        (onMatch ?? onDescriptor)?.(descriptorArray);
+        return;
+      }
+
+      (onMatch ?? onIdentificado)?.(descriptorArray);
     } catch (e) {
       console.error(e);
       setErrorMsg("Error al analizar el rostro.");
