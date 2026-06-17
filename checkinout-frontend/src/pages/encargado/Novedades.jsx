@@ -183,12 +183,12 @@ export default function Novedades() {
         const [novRes, obrasRes, trabRes] = await Promise.all([
           api.get("/novedades"),
           api.get("/obras"),
-          api.get("/trabajadores"),
+          api.get("/trabajadores", { params: { limit: 500 } }),
         ]);
         if (!alive) return;
         const nov = novRes.data.data || novRes.data;
         const obs = obrasRes.data.obras || obrasRes.data.data || obrasRes.data;
-        const tb = trabRes.data?.trabajadores || trabRes.data?.data || trabRes.data;
+        const tb = trabRes.data?.data?.trabajadores ?? trabRes.data?.trabajadores ?? [];
         setNovedades(Array.isArray(nov) ? nov : []);
         setObras(Array.isArray(obs) ? obs : []);
         setTrabajadores(Array.isArray(tb) ? tb : []);
