@@ -9,7 +9,7 @@ const obtenerRowsAsistenciaDiaria = async ({ fecha_inicio, fecha_fin, obra_id, e
       t.id AS trabajador_id,
       CONCAT(t.nombre, ' ', t.apellido) AS trabajador,
       t.cedula,
-      r.fecha,
+      DATE(r.timestamp) AS fecha,
       MIN(CASE WHEN r.tipo = 'ingreso' THEN r.timestamp END) AS hora_entrada,
       MAX(CASE WHEN r.tipo = 'salida' THEN r.timestamp END) AS hora_salida,
       o.nombre AS obra
@@ -17,7 +17,7 @@ const obtenerRowsAsistenciaDiaria = async ({ fecha_inicio, fecha_fin, obra_id, e
     JOIN trabajadores t ON t.id = r.trabajador_id
     JOIN obras o ON o.id = r.obra_id
     WHERE t.empresa_id = ?
-      AND r.fecha BETWEEN ? AND ?
+      AND DATE(r.timestamp) BETWEEN ? AND ?
       AND r.estado = 'valido'
   `;
   const params = [empresa_id, fecha_inicio, fecha_fin];
@@ -25,7 +25,7 @@ const obtenerRowsAsistenciaDiaria = async ({ fecha_inicio, fecha_fin, obra_id, e
     query += ' AND r.obra_id = ?';
     params.push(obra_id);
   }
-  query += ' GROUP BY t.id, r.fecha, o.id ORDER BY r.fecha, trabajador';
+  query += ' GROUP BY t.id, DATE(r.timestamp), o.id ORDER BY DATE(r.timestamp), trabajador';
   const [rows] = await db.query(query, params);
   return rows;
 };
@@ -34,15 +34,15 @@ const obtenerRowsAusencias = async ({ fecha, obra_id, empresa_id }) => {
   let query = `
       SELECT t.id, CONCAT(t.nombre,' ',t.apellido) AS trabajador, t.cedula
       FROM trabajadores t
+      ${obra_id ? "JOIN asignaciones a ON a.trabajador_id = t.id AND a.estado = 'activo' AND a.obra_id = ?" : ''}
       WHERE t.empresa_id = ? AND t.estado = 'activo'
       AND t.id NOT IN (
         SELECT trabajador_id FROM registros_asistencia
-        WHERE DATE(timestamp) = ? AND tipo = 'ingreso'
+        WHERE DATE(timestamp) = ? AND tipo = 'ingreso' AND estado = 'valido'
         ${obra_id ? 'AND obra_id = ?' : ''}
       )
     `;
-  const params = [empresa_id, fecha];
-  if (obra_id) params.push(obra_id);
+  const params = obra_id ? [obra_id, empresa_id, fecha, obra_id] : [empresa_id, fecha];
   const [rows] = await db.query(query, params);
   return rows;
 };
@@ -51,27 +51,31 @@ const obtenerRowsAusenciasRango = async ({ fecha_inicio, fecha_fin, obra_id, emp
   const fechaDesde = fecha_inicio || new Date().toISOString().split('T')[0];
   const fechaHasta = fecha_fin || fechaDesde;
   let query = `
-      SELECT 
+      WITH RECURSIVE fechas_rango (fecha) AS (
+        SELECT CAST(? AS DATE) AS fecha
+        UNION ALL
+        SELECT fecha + INTERVAL 1 DAY
+        FROM fechas_rango
+        WHERE fecha < CAST(? AS DATE)
+      )
+      SELECT
         t.id,
         CONCAT(t.nombre,' ',t.apellido) AS trabajador,
         t.cedula,
-        COUNT(DISTINCT fechas.fecha) AS total_ausencias
+        COUNT(DISTINCT fr.fecha) AS total_ausencias
       FROM trabajadores t
-      JOIN (
-        SELECT DISTINCT DATE(timestamp) AS fecha, obra_id
-        FROM registros_asistencia
-        WHERE DATE(timestamp) BETWEEN ? AND ?
-        ${obra_id ? 'AND obra_id = ?' : ''}
-      ) AS fechas ON 1=1
+      ${obra_id ? "JOIN asignaciones a ON a.trabajador_id = t.id AND a.estado = 'activo' AND a.obra_id = ?" : ''}
+      CROSS JOIN fechas_rango fr
       WHERE t.empresa_id = ? AND t.estado = 'activo'
       AND NOT EXISTS (
         SELECT 1 FROM registros_asistencia r
         WHERE r.trabajador_id = t.id
-          AND DATE(r.timestamp) = fechas.fecha
+          AND DATE(r.timestamp) = fr.fecha
           AND r.tipo = 'ingreso'
+          AND r.estado = 'valido'
           ${obra_id ? 'AND r.obra_id = ?' : ''}
       )
-      GROUP BY t.id
+      GROUP BY t.id, t.nombre, t.apellido, t.cedula
       HAVING total_ausencias > 0
       ORDER BY total_ausencias DESC
     `;
@@ -198,6 +202,8 @@ const generarResumen = async (req, res) => {
 
   try {
     const fechasRango = enumerarFechas(fecha_inicio, fecha_fin);
+    // Días calendario del rango (incluye fines de semana y festivos).
+    // Deuda técnica: no hay calendario laboral ni fecha de ingreso/retiro por trabajador.
     const diasEnRango = fechasRango.length;
 
     let queryDaily = `
@@ -205,7 +211,7 @@ const generarResumen = async (req, res) => {
         t.id AS trabajador_id,
         CONCAT(t.nombre, ' ', t.apellido) AS nombre,
         o.nombre AS obra_nombre,
-        r.fecha,
+        DATE(r.timestamp) AS fecha,
         MIN(CASE WHEN r.tipo = 'ingreso' THEN r.timestamp END) AS hora_entrada,
         MAX(CASE WHEN r.tipo = 'salida' THEN r.timestamp END) AS hora_salida,
         CASE
@@ -222,7 +228,7 @@ const generarResumen = async (req, res) => {
       JOIN trabajadores t ON t.id = r.trabajador_id
       JOIN obras o ON o.id = r.obra_id
       WHERE t.empresa_id = ?
-        AND r.fecha BETWEEN ? AND ?
+        AND DATE(r.timestamp) BETWEEN ? AND ?
         AND r.estado = 'valido'
     `;
     const paramsDaily = [empresa_id, fecha_inicio, fecha_fin];
@@ -231,17 +237,17 @@ const generarResumen = async (req, res) => {
       paramsDaily.push(obraParam);
     }
     queryDaily +=
-      ' GROUP BY t.id, r.fecha, o.id, t.nombre, t.apellido, o.nombre ORDER BY t.id, r.fecha';
+      ' GROUP BY t.id, DATE(r.timestamp), o.id, t.nombre, t.apellido, o.nombre ORDER BY t.id, DATE(r.timestamp)';
 
     const [dailyRows] = await db.query(queryDaily, paramsDaily);
 
     let countQuery = `
-      SELECT COUNT(*) AS total
+      SELECT COUNT(DISTINCT r.trabajador_id, DATE(r.timestamp)) AS total
       FROM registros_asistencia r
       JOIN trabajadores t ON t.id = r.trabajador_id
       JOIN obras o ON o.id = r.obra_id
       WHERE t.empresa_id = ?
-        AND r.fecha BETWEEN ? AND ?
+        AND DATE(r.timestamp) BETWEEN ? AND ?
         AND r.estado = 'valido'
     `;
     const countParams = [empresa_id, fecha_inicio, fecha_fin];
@@ -251,15 +257,29 @@ const generarResumen = async (req, res) => {
     }
     const [[{ total: totalRegistros }]] = await db.query(countQuery, countParams);
 
-    const [activos] = await db.query(
-      `SELECT t.id, CONCAT(t.nombre, ' ', t.apellido) AS nombre
+    let activosQuery;
+    let activosParams;
+    if (obraParam != null) {
+      activosQuery = `
+       SELECT DISTINCT t.id, CONCAT(t.nombre, ' ', t.apellido) AS nombre
+       FROM trabajadores t
+       JOIN asignaciones a ON a.trabajador_id = t.id AND a.estado = 'activo' AND a.obra_id = ?
+       WHERE t.empresa_id = ? AND t.estado = 'activo'
+       ORDER BY t.apellido, t.nombre`;
+      activosParams = [obraParam, empresa_id];
+    } else {
+      // Vista global: todos los trabajadores activos de la empresa (sin filtro por obra).
+      activosQuery = `
+       SELECT t.id, CONCAT(t.nombre, ' ', t.apellido) AS nombre
        FROM trabajadores t
        WHERE t.empresa_id = ? AND t.estado = 'activo'
-       ORDER BY t.apellido, t.nombre`,
-      [empresa_id]
-    );
+       ORDER BY t.apellido, t.nombre`;
+      activosParams = [empresa_id];
+    }
+    const [activos] = await db.query(activosQuery, activosParams);
 
     const porTrabajador = new Map();
+    const asistenciaPorDia = new Map();
     for (const row of dailyRows) {
       const id = row.trabajador_id;
       if (!porTrabajador.has(id)) {
@@ -272,8 +292,11 @@ const generarResumen = async (req, res) => {
       }
       const agg = porTrabajador.get(id);
       if (row.hora_entrada) {
-        agg.fechasConIngreso.add(String(row.fecha).slice(0, 10));
+        const fechaDia = String(row.fecha).slice(0, 10);
+        agg.fechasConIngreso.add(fechaDia);
         agg.obras.add(row.obra_nombre);
+        if (!asistenciaPorDia.has(fechaDia)) asistenciaPorDia.set(fechaDia, new Set());
+        asistenciaPorDia.get(fechaDia).add(id);
       }
       agg.horasTotales += Number(row.horas_dia) || 0;
     }
@@ -302,10 +325,14 @@ const generarResumen = async (req, res) => {
     });
 
     const ausenciasTotales = trabajadores.reduce((acc, row) => acc + row.ausencias, 0);
-    const sumHoras = trabajadores.reduce((acc, row) => acc + row.horasTotales, 0);
-    const sumDiasAsistidos = trabajadores.reduce((acc, row) => acc + row.diasAsistidos, 0);
+    const sumaAsistenciaDiaria = fechasRango.reduce(
+      (acc, fecha) => acc + (asistenciaPorDia.get(fecha)?.size ?? 0),
+      0
+    );
     const promedioDiario =
-      sumDiasAsistidos > 0 ? Math.round((sumHoras / sumDiasAsistidos) * 100) / 100 : 0;
+      fechasRango.length > 0
+        ? Math.round((sumaAsistenciaDiaria / fechasRango.length) * 100) / 100
+        : 0;
 
     const vacio = Number(totalRegistros) === 0;
 
