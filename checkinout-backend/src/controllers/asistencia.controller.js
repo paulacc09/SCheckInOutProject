@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { crearNotificacion } = require('../utils/notificaciones');
 const { enviarCorreoJornada } = require('../utils/emails');
+const { obtenerNombreCompleto } = require('../utils/usuario');
 
 const abrirJornada = async (req, res) => {
   const { obra_id } = req.body;
@@ -26,6 +27,7 @@ const abrirJornada = async (req, res) => {
 
       if (obraRows.length) {
         const { nombre, empresa_id } = obraRows[0];
+        const nombreInspector = await obtenerNombreCompleto(req.usuario.id);
         const [admins] = await db.query(
           `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
           [empresa_id]
@@ -38,7 +40,7 @@ const abrirJornada = async (req, res) => {
             usuario_origen_id: req.usuario.id,
             tipo: 'jornada_abierta',
             titulo: 'Jornada abierta',
-            mensaje: `El inspector ${req.usuario.nombre} ${req.usuario.apellido} abrió la jornada en la obra "${nombre}"`,
+            mensaje: `El inspector ${nombreInspector} abrió la jornada en la obra "${nombre}"`,
             referencia_id: result.insertId,
             referencia_tabla: 'jornadas_asistencia'
           });
@@ -49,7 +51,6 @@ const abrirJornada = async (req, res) => {
             `SELECT id, nombre, email FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
             [empresa_id]
           );
-          const nombreInspector = `${req.usuario.nombre} ${req.usuario.apellido}`;
           for (const admin of adminsEmail) {
             await enviarCorreoJornada({
               emailAdmin: admin.email,
@@ -91,6 +92,7 @@ const cerrarJornada = async (req, res) => {
 
       if (jornadaRows.length) {
         const { obra_nombre, empresa_id } = jornadaRows[0];
+        const nombreInspector = await obtenerNombreCompleto(req.usuario.id);
         const [admins] = await db.query(
           `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
           [empresa_id]
@@ -103,7 +105,7 @@ const cerrarJornada = async (req, res) => {
             usuario_origen_id: req.usuario.id,
             tipo: 'jornada_cerrada',
             titulo: 'Jornada cerrada',
-            mensaje: `El inspector cerró la jornada en la obra "${obra_nombre}"`,
+            mensaje: `El inspector ${nombreInspector} cerró la jornada en la obra "${obra_nombre}"`,
             referencia_id: parseInt(req.params.id),
             referencia_tabla: 'jornadas_asistencia'
           });
@@ -114,7 +116,6 @@ const cerrarJornada = async (req, res) => {
             `SELECT id, nombre, email FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
             [empresa_id]
           );
-          const nombreInspector = `${req.usuario.nombre} ${req.usuario.apellido}`;
           for (const admin of adminsEmail) {
             await enviarCorreoJornada({
               emailAdmin: admin.email,

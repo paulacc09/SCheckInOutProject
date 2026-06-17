@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { crearNotificacion } = require('../utils/notificaciones');
 const { enviarCorreoNovedadRegistrada, enviarCorreoNovedadResuelta } = require('../utils/emails');
+const { obtenerNombreCompleto } = require('../utils/usuario');
 
 const TIPOS_NOVEDAD = [
   'accidente_laboral',
@@ -73,6 +74,8 @@ const crear = async (req, res) => {
       ]
     );
 
+    const nombreReportador = await obtenerNombreCompleto(req.usuario.id);
+
     try {
       const [admins] = await db.query(
         `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
@@ -86,7 +89,7 @@ const crear = async (req, res) => {
           usuario_origen_id: req.usuario.id,
           tipo: 'novedad_registrada',
           titulo: 'Nueva novedad registrada',
-          mensaje: `${req.usuario.nombre} ${req.usuario.apellido} registró una novedad de tipo ${tipo} para el trabajador ${trabajador_id}`,
+          mensaje: `${nombreReportador} registró una novedad de tipo ${tipo} para el trabajador ${trabajador_id}`,
           referencia_id: result.insertId,
           referencia_tabla: 'novedades',
         });
@@ -100,12 +103,11 @@ const crear = async (req, res) => {
         `SELECT id, nombre, email FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
         [req.usuario.empresa_id]
       );
-      const nombreInspector = `${req.usuario.nombre} ${req.usuario.apellido}`;
       for (const admin of adminsEmail) {
         await enviarCorreoNovedadRegistrada({
           emailAdmin: admin.email,
           nombreAdmin: admin.nombre,
-          nombreInspector,
+          nombreInspector: nombreReportador,
           tipoNovedad: tipo,
           nombreTrabajador: trabajador_id,
         });
@@ -148,13 +150,14 @@ const resolver = async (req, res) => {
       );
       if (filas.length) {
         const { reportado_por, tipo: tipo_novedad } = filas[0];
+        const nombreResolutor = await obtenerNombreCompleto(req.usuario.id);
         await crearNotificacion({
           empresa_id: req.usuario.empresa_id,
           usuario_destino_id: reportado_por,
           usuario_origen_id: req.usuario.id,
           tipo: 'novedad_resuelta',
           titulo: estado === 'aprobada' ? 'Novedad aprobada' : 'Novedad rechazada',
-          mensaje: `Tu novedad de tipo ${tipo_novedad} fue ${estado} por ${req.usuario.nombre} ${req.usuario.apellido}`,
+          mensaje: `Tu novedad de tipo ${tipo_novedad} fue ${estado} por ${nombreResolutor}`,
           referencia_tabla: 'novedades',
           referencia_id: parseInt(req.params.id, 10),
         });

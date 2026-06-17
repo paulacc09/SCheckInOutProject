@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { crearNotificacion } = require('../utils/notificaciones');
+const { obtenerNombreCompleto } = require('../utils/usuario');
 
 const obtenerRowsAsistenciaDiaria = async ({ fecha_inicio, fecha_fin, obra_id, empresa_id }) => {
   let query = `
@@ -399,6 +400,7 @@ const exportarReporte = async (req, res) => {
     );
 
     try {
+      const nombreDescargador = await obtenerNombreCompleto(req.usuario.id);
       const [admins] = await db.query(
         `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
         [req.usuario.empresa_id]
@@ -411,7 +413,7 @@ const exportarReporte = async (req, res) => {
             usuario_origen_id: req.usuario.id,
             tipo: 'reporte_descargado',
             titulo: 'Reporte descargado',
-            mensaje: `${req.usuario.nombre} ${req.usuario.apellido} descargó un reporte de ${tipo} (${formato})`,
+            mensaje: `${nombreDescargador} descargó un reporte de ${tipo} (${formato})`,
             referencia_tabla: 'reportes',
             referencia_id: insertResult.insertId,
           });

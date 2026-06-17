@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { success, error } = require('../utils/response');
 const { crearNotificacion } = require('../utils/notificaciones');
+const { obtenerNombreCompleto } = require('../utils/usuario');
 
 const sanitizeOptional = (value) => (value ? value : null);
 const cedulaRegex = /^\d{5,15}$/;
@@ -230,6 +231,7 @@ const actualizar = async (req, res) => {
     await asignarObraSiCorresponde({ trabajadorId: req.params.id, obraId: obra_id });
 
     try {
+      const nombreEditor = await obtenerNombreCompleto(req.usuario.id);
       const [admins] = await db.query(
         `SELECT id FROM usuarios WHERE rol = 'administrador' AND empresa_id = ?`,
         [req.usuario.empresa_id]
@@ -242,7 +244,7 @@ const actualizar = async (req, res) => {
           usuario_origen_id: req.usuario.id,
           tipo: 'trabajador_editado',
           titulo: 'Trabajador editado',
-          mensaje: `El inspector ${req.usuario.nombre} ${req.usuario.apellido} editó al trabajador ${nombre} ${apellido}`,
+          mensaje: `El inspector ${nombreEditor} editó al trabajador ${nombre} ${apellido}`,
           referencia_id: parseInt(req.params.id),
           referencia_tabla: 'trabajadores'
         });
