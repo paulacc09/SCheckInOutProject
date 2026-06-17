@@ -7,17 +7,11 @@ import PaginationBar from "../../components/PaginationBar";
 import CamaraFacial from "../../components/CamaraFacial";
 import { useAuth } from "../../context/AuthContext";
 import { paginate } from "../../services/pagination";
+import { horaCorta } from "../../utils/formatHora";
 
 const PAGE_SIZE = 10;
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
-
-const horaCorta = (d) =>
-  new Date(d).toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 
 const nombreResponsable = (jornada, usuario) => {
   if (!jornada) return null;
@@ -558,7 +552,7 @@ export default function Asistencia() {
                               <tr key={`${r.trabajador_id}-${r.cedula}-${idx}`}>
                                 <td className="text-slate-800">{r.nombre ?? "—"}</td>
                                 <td className="font-mono text-xs">{r.cedula ?? "—"}</td>
-                                <td className="text-slate-700">{r.hora_ingreso ?? "—"}</td>
+                                <td className="text-slate-700">{horaCorta(r.hora_ingreso)}</td>
                                 <td>
                                   <span className={cls}>{label}</span>
                                 </td>

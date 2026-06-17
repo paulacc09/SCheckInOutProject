@@ -6,6 +6,7 @@ import FlashBanner from "../../components/FlashBanner";
 import SortTh from "../../components/SortTh";
 import { useSortable } from "../../hooks/useSortable";
 import { paginate } from "../../services/pagination";
+import { horaCorta } from "../../utils/formatHora";
 
 const PAGE_SIZE = 10;
 
@@ -158,8 +159,8 @@ export default function Asistencias() {
                       <td className="font-mono text-xs">{r.cedula ?? "—"}</td>
                       <td>{r.obra ?? "—"}</td>
                       <td>{String(r.fecha).slice(0, 10)}</td>
-                      <td>{r.hora_ingreso ?? "--"}</td>
-                      <td>{r.hora_salida ?? "--"}</td>
+                      <td>{horaCorta(r.hora_ingreso)}</td>
+                      <td>{horaCorta(r.hora_salida)}</td>
                       <td>
                         <span className={`badge ${badgeEstado(r.estado)}`}>{r.estado ?? "—"}</span>
                       </td>

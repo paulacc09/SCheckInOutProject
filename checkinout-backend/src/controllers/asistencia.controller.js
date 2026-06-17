@@ -3,10 +3,6 @@ const { success, error } = require('../utils/response');
 const { crearNotificacion } = require('../utils/notificaciones');
 const { enviarCorreoJornada } = require('../utils/emails');
 
-const ahoraColumbia = () => {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-};
-
 const abrirJornada = async (req, res) => {
   const { obra_id } = req.body;
   if (!obra_id) return error(res, 'obra_id es requerido');
@@ -19,7 +15,7 @@ const abrirJornada = async (req, res) => {
 
     const [result] = await db.query(
       `INSERT INTO jornadas_asistencia (obra_id, inspector_id, hora_apertura) VALUES (?, ?, ?)`,
-      [obra_id, req.usuario.id, ahoraColumbia()]
+      [obra_id, req.usuario.id, new Date()]
     );
 
     try {
@@ -82,7 +78,7 @@ const cerrarJornada = async (req, res) => {
     const [result] = await db.query(
       `UPDATE jornadas_asistencia SET estado='cerrada', hora_cierre=?
        WHERE id=? AND estado='abierta'`,
-      [ahoraColumbia(), req.params.id]
+      [new Date(), req.params.id]
     );
     if (!result.affectedRows) return error(res, 'Jornada no encontrada o ya cerrada', 404);
 
@@ -163,14 +159,15 @@ const registrarAsistencia = async (req, res) => {
     const trabajador_id = trabajador[0].id;
     const jornada_id = jornada[0].id;
 
+    const ahora = new Date();
     await db.query(
       `INSERT INTO registros_asistencia 
        (jornada_id, trabajador_id, obra_id, tipo, metodo, registrado_por, timestamp)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [jornada_id, trabajador_id, obra_id, tipo, metodo, req.usuario.id, ahoraColumbia()]
+      [jornada_id, trabajador_id, obra_id, tipo, metodo, req.usuario.id, ahora]
     );
 
-    return success(res, { mensaje: `${tipo} registrado correctamente`, timestamp: new Date() });
+    return success(res, { mensaje: `${tipo} registrado correctamente`, timestamp: ahora });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return error(res, `Ya existe un registro de ${tipo} para hoy`);
     return error(res, err.message, 500);

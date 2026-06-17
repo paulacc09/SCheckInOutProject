@@ -7,31 +7,18 @@ import Modal from "../../components/Modal";
 import PaginationBar from "../../components/PaginationBar";
 import { useAuth } from "../../context/AuthContext";
 import { paginate } from "../../services/pagination";
+import { horaCorta } from "../../utils/formatHora";
 
 const PAGE_SIZE = 10;
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 
 const unwrap = (body) => body?.data ?? body?.obras ?? body?.trabajadores ?? body;
 
-const horaCorta = (d) =>
-  new Date(d).toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-
 const nombreResponsableJornada = (j, usuario) => {
   if (!j) return "";
   const n = [j.inspector_nombre, j.inspector_apellido].filter(Boolean).join(" ").trim();
   if (n) return n;
   return [usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ").trim() || usuario?.nombre || "";
-};
-
-const horaIngresoDisplay = (hora) => {
-  if (!hora) return "--";
-  const s = String(hora);
-  if (/^\d{2}:\d{2}/.test(s)) return s.slice(0, 5);
-  return s;
 };
 
 const UMBRAL_TARDANZA_MIN = 8 * 60 + 30;
@@ -195,7 +182,7 @@ export default function Personal() {
         resumenPorTrabajador.get(idStr) ?? (ced ? resumenPorTrabajador.get(`ced:${ced}`) : undefined);
       const base = estadoDiaDesdeResumen(res);
       const estado_dia = overrides[idStr] ?? base;
-      const hora_ingreso = res?.hora_ingreso ? horaIngresoDisplay(res.hora_ingreso) : "--";
+      const hora_ingreso = res?.hora_ingreso ? horaCorta(res.hora_ingreso) : "--";
       const cargoLabel = t.subcargo || t.subcargo_nombre || t.cargo || "—";
       return {
         trabajador: t,
