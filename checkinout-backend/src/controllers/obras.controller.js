@@ -56,13 +56,31 @@ const validarDatosObra = ({ codigo, nombre, ciudad, direccion, fecha_inicio, fec
 
 const listar = async (req, res) => {
   try {
-    const [rows] = await db.query(`
-      SELECT o.*, u.nombre AS responsable_nombre, u.apellido AS responsable_apellido
+    const verTodas = req.query.todas === '1' || req.query.todas === 'true';
+    let query = `
+      SELECT o.*,
+        u.nombre AS responsable_nombre, u.apellido AS responsable_apellido,
+        ue.nombre AS encargado_nombre, ue.apellido AS encargado_apellido
       FROM obras o
       LEFT JOIN usuarios u ON u.id = o.responsable_sst_id
-      WHERE o.empresa_id = ?
-      ORDER BY o.created_at DESC
-    `, [req.usuario.empresa_id]);
+      LEFT JOIN usuarios ue ON ue.id = o.encargado_id
+      WHERE o.empresa_id = ?`;
+    const params = [req.usuario.empresa_id];
+
+    if (!verTodas) {
+      if (req.usuario.rol === 'inspector_sst') {
+        query += ' AND o.responsable_sst_id = ?';
+        params.push(req.usuario.id);
+      } else if (req.usuario.rol === 'encargado') {
+        query += ' AND o.encargado_id = ?';
+        params.push(req.usuario.id);
+      }
+    } else if (req.usuario.rol !== 'administrador' && req.usuario.rol !== 'encargado') {
+      return error(res, 'No autorizado', 403);
+    }
+
+    query += ' ORDER BY o.created_at DESC';
+    const [rows] = await db.query(query, params);
     return success(res, rows);
   } catch (err) {
     return error(res, err.message, 500);
@@ -72,20 +90,30 @@ const listar = async (req, res) => {
 const obtener = async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT o.*, u.nombre AS responsable_nombre, u.apellido AS responsable_apellido
+      SELECT o.*,
+        u.nombre AS responsable_nombre, u.apellido AS responsable_apellido,
+        ue.nombre AS encargado_nombre, ue.apellido AS encargado_apellido
       FROM obras o
       LEFT JOIN usuarios u ON u.id = o.responsable_sst_id
+      LEFT JOIN usuarios ue ON ue.id = o.encargado_id
       WHERE o.id = ? AND o.empresa_id = ?
     `, [req.params.id, req.usuario.empresa_id]);
     if (!rows.length) return error(res, 'Obra no encontrada', 404);
-    return success(res, rows[0]);
+    const obra = rows[0];
+    if (req.usuario.rol === 'inspector_sst' && Number(obra.responsable_sst_id) !== Number(req.usuario.id)) {
+      return error(res, 'Obra no encontrada', 404);
+    }
+    if (req.usuario.rol === 'encargado' && Number(obra.encargado_id) !== Number(req.usuario.id)) {
+      return error(res, 'Obra no encontrada', 404);
+    }
+    return success(res, obra);
   } catch (err) {
     return error(res, err.message, 500);
   }
 };
 
 const crear = async (req, res) => {
-  const { codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo } = req.body;
+  const { codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, encargado_id, id_dispositivo } = req.body;
   if (!codigo || !nombre) return error(res, 'codigo y nombre son requeridos');
   if (!validarDatosObra({ codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin }, res)) return;
   try {
@@ -94,11 +122,12 @@ const crear = async (req, res) => {
     const fechaInicioSanitized = sanitizeOptional(fecha_inicio);
     const fechaFinSanitized = sanitizeOptional(fecha_fin);
     const responsableSstIdSanitized = sanitizeOptional(responsable_sst_id);
+    const encargadoIdSanitized = sanitizeOptional(encargado_id);
     const idDispositivoSanitized = sanitizeOptional(id_dispositivo);
 
     const [result] = await db.query(
-      `INSERT INTO obras (empresa_id, codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO obras (empresa_id, codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, encargado_id, id_dispositivo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.usuario.empresa_id,
         codigo,
@@ -108,6 +137,7 @@ const crear = async (req, res) => {
         fechaInicioSanitized,
         fechaFinSanitized,
         responsableSstIdSanitized,
+        encargadoIdSanitized,
         idDispositivoSanitized
       ]
     );
@@ -118,7 +148,7 @@ const crear = async (req, res) => {
 };
 
 const actualizar = async (req, res) => {
-  const { codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, id_dispositivo } = req.body;
+  const { codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin, responsable_sst_id, encargado_id, id_dispositivo } = req.body;
   if (!validarDatosObra({ codigo, nombre, ciudad, direccion, fecha_inicio, fecha_fin }, res)) return;
   try {
     const ciudadSanitized = sanitizeOptional(ciudad);
@@ -126,10 +156,11 @@ const actualizar = async (req, res) => {
     const fechaInicioSanitized = sanitizeOptional(fecha_inicio);
     const fechaFinSanitized = sanitizeOptional(fecha_fin);
     const responsableSstIdSanitized = sanitizeOptional(responsable_sst_id);
+    const encargadoIdSanitized = sanitizeOptional(encargado_id);
     const idDispositivoSanitized = sanitizeOptional(id_dispositivo);
 
     const [result] = await db.query(
-      `UPDATE obras SET codigo=?, nombre=?, ciudad=?, direccion=?, fecha_inicio=?, fecha_fin=?, responsable_sst_id=?, id_dispositivo=?
+      `UPDATE obras SET codigo=?, nombre=?, ciudad=?, direccion=?, fecha_inicio=?, fecha_fin=?, responsable_sst_id=?, encargado_id=?, id_dispositivo=?
        WHERE id=? AND empresa_id=?`,
       [
         codigo,
@@ -139,6 +170,7 @@ const actualizar = async (req, res) => {
         fechaInicioSanitized,
         fechaFinSanitized,
         responsableSstIdSanitized,
+        encargadoIdSanitized,
         idDispositivoSanitized,
         req.params.id,
         req.usuario.empresa_id

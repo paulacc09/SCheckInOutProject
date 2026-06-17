@@ -7,6 +7,7 @@ import PaginationBar from "../../components/PaginationBar";
 import { useAuth } from "../../context/AuthContext";
 import { paginate } from "../../services/pagination";
 import { horaCorta } from "../../utils/formatHora";
+import { normalizarListaObras, obtenerObraAsignada } from "../../utils/obraAsignada";
 
 const PAGE_SIZE = 10;
 const hoyISO = () => new Date().toISOString().slice(0, 10);
@@ -77,14 +78,14 @@ export default function Personal() {
         api.get("/obras"),
         api.get("/subcargos"),
       ]);
-      const obrasList = Array.isArray(unwrap(obrasBody)) ? unwrap(obrasBody) : [];
-      const primera = obrasList[0] ?? null;
-      setObra(primera);
+      const obrasList = normalizarListaObras(obrasBody);
+      const obraAsignada = obtenerObraAsignada(obrasList, usuario);
+      setObra(obraAsignada);
 
       const subRaw = unwrap(subRes.data);
       setSubcargos(Array.isArray(subRaw) ? subRaw : []);
 
-      if (!primera?.id) {
+      if (!obraAsignada?.id) {
         setTrabajadores([]);
         setResumenRows([]);
         setJornada(null);
@@ -92,11 +93,11 @@ export default function Personal() {
       }
 
       const [{ data: trabBody }, { data: resumenBody }, { data: jornBody }] = await Promise.all([
-        api.get("/trabajadores", { params: { obra_id: primera.id, limit: 500 } }),
+        api.get("/trabajadores", { params: { obra_id: obraAsignada.id, limit: 500 } }),
         api.get("/asistencia/resumen-trabajadores", {
-          params: { obra_id: primera.id, fecha },
+          params: { obra_id: obraAsignada.id, fecha },
         }),
-        api.get("/asistencia/jornadas", { params: { obra_id: primera.id } }),
+        api.get("/asistencia/jornadas", { params: { obra_id: obraAsignada.id } }),
       ]);
 
       const rawTrab = unwrap(trabBody);
@@ -122,7 +123,7 @@ export default function Personal() {
     } finally {
       setLoading(false);
     }
-  }, [fecha]);
+  }, [fecha, usuario]);
 
   useEffect(() => {
     void cargarDatos();

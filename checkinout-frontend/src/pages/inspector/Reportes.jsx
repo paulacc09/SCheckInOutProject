@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { normalizarListaObras, obtenerObraAsignada } from "../../utils/obraAsignada";
 import { Loader2, AlertCircle, FileBarChart2, Download } from "lucide-react";
 import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
@@ -38,6 +40,7 @@ const TIPOS = [
 ];
 
 export default function Reportes() {
+  const { usuario } = useAuth();
   const [tipo, setTipo] = useState("asistencia");
   const [fechaInicio, setFechaInicio] = useState(() => new Date().toISOString().slice(0, 10));
   const [fechaFin, setFechaFin] = useState(() => new Date().toISOString().slice(0, 10));
@@ -52,8 +55,12 @@ export default function Reportes() {
     (async () => {
       try {
         const { data: body } = await api.get("/obras");
-        const list = body.obras || body.data || body || [];
-        if (alive) setObras(Array.isArray(list) ? list : []);
+        const list = normalizarListaObras(body);
+        const obraAsignada = obtenerObraAsignada(list, usuario);
+        if (alive) {
+          setObras(obraAsignada ? [obraAsignada] : list);
+          if (obraAsignada?.id) setObraId(String(obraAsignada.id));
+        }
       } catch {
         if (alive) setObras([]);
       }
@@ -61,7 +68,7 @@ export default function Reportes() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [usuario?.id, usuario?.rol]);
 
   const generar = async (e) => {
     e.preventDefault();

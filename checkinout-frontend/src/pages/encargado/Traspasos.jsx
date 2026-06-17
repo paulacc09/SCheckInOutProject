@@ -109,7 +109,7 @@ export default function Traspasos() {
         const [trRes, tbRes, obRes] = await Promise.all([
           api.get("/traspasos"),
           api.get("/trabajadores"),
-          api.get("/obras"),
+          api.get("/obras", { params: { todas: "1" } }),
         ]);
         if (!alive) return;
         const tr = trRes.data.data || trRes.data;

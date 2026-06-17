@@ -8,6 +8,7 @@ import CamaraFacial from "../../components/CamaraFacial";
 import { useAuth } from "../../context/AuthContext";
 import { paginate } from "../../services/pagination";
 import { horaCorta } from "../../utils/formatHora";
+import { normalizarListaObras, obtenerObraAsignada } from "../../utils/obraAsignada";
 
 const PAGE_SIZE = 10;
 
@@ -116,21 +117,20 @@ export default function Asistencia() {
       setError("");
       try {
         const { data: bodyObras } = await api.get("/obras");
-        const rawObras = bodyObras?.data ?? bodyObras?.obras ?? bodyObras;
-        const obrasList = Array.isArray(rawObras) ? rawObras : [];
-        const primera = obrasList[0] ?? null;
+        const obrasList = normalizarListaObras(bodyObras);
+        const obraAsignada = obtenerObraAsignada(obrasList, usuario);
         if (!alive) return;
-        setObra(primera);
+        setObra(obraAsignada);
 
-        if (!primera) {
+        if (!obraAsignada) {
           setJornada(null);
           setResumenRows([]);
           return;
         }
 
-        await refrescarJornada(primera.id);
+        await refrescarJornada(obraAsignada.id);
         if (!alive) return;
-        await cargarResumen(primera.id);
+        await cargarResumen(obraAsignada.id);
       } catch (err) {
         if (!alive) return;
         setError(

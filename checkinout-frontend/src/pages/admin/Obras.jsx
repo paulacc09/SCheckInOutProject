@@ -26,6 +26,7 @@ export default function Obras() {
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(null);
   const [inspectores, setInspectores] = useState([]);
+  const [encargados, setEncargados] = useState([]);
   const [stats, setStats] = useState({ trabajadoresActivos: 0, asistenciaHoy: 0, pendientes: 0 });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -40,6 +41,7 @@ export default function Obras() {
     fecha_inicio: "",
     fecha_fin: "",
     responsable_sst_id: "",
+    encargado_id: "",
     estado: "activa",
   });
 
@@ -64,6 +66,15 @@ export default function Obras() {
     } catch {
     }
   }, []);
+
+  const cargarEncargados = async () => {
+    try {
+      const { data } = await api.get("/usuarios?rol=encargado");
+      setEncargados(Array.isArray(data) ? data : data.data ?? data.usuarios ?? []);
+    } catch {
+      setEncargados([]);
+    }
+  };
 
   const cargarInspectores = async () => {
     try {
@@ -108,6 +119,7 @@ export default function Obras() {
     setEditingId(null);
     setFormErr({});
     await cargarInspectores();
+    await cargarEncargados();
     setForm({
       codigo: "",
       nombre: "",
@@ -116,6 +128,7 @@ export default function Obras() {
       fecha_inicio: "",
       fecha_fin: "",
       responsable_sst_id: "",
+      encargado_id: "",
       estado: "activa",
     });
     setModalOpen(true);
@@ -125,6 +138,7 @@ export default function Obras() {
     setEditingId(row.id);
     setFormErr({});
     await cargarInspectores();
+    await cargarEncargados();
     setForm({
       codigo: row.codigo || "",
       nombre: row.nombre || "",
@@ -133,6 +147,7 @@ export default function Obras() {
       fecha_inicio: row.fecha_inicio ? String(row.fecha_inicio).slice(0, 10) : "",
       fecha_fin: row.fecha_fin ? String(row.fecha_fin).slice(0, 10) : "",
       responsable_sst_id: row.responsable_sst_id || "",
+      encargado_id: row.encargado_id || "",
       estado: row.estado || "activa",
     });
     setModalOpen(true);
@@ -159,6 +174,7 @@ export default function Obras() {
       fecha_inicio: form.fecha_inicio?.trim() || null,
       fecha_fin: form.fecha_fin?.trim() || null,
       responsable_sst_id: form.responsable_sst_id || null,
+      encargado_id: form.encargado_id || null,
     };
     try {
       let obraId = editingId;
@@ -321,6 +337,15 @@ export default function Obras() {
               <option value="">Sin asignar</option>
               {inspectores.map((i) => (
                 <option key={i.id} value={i.id}>{i.nombre} {i.apellido}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Encargado (opcional)</label>
+            <select className="select" value={form.encargado_id} onChange={(e) => setForm((f) => ({ ...f, encargado_id: e.target.value }))}>
+              <option value="">Sin asignar</option>
+              {encargados.map((e) => (
+                <option key={e.id} value={e.id}>{e.nombre} {e.apellido}</option>
               ))}
             </select>
           </div>

@@ -4,6 +4,8 @@ import api from "../../api/axios";
 import TopBar from "../../components/TopBar";
 import Modal from "../../components/Modal";
 import EmptyState from "../../components/EmptyState";
+import { useAuth } from "../../context/AuthContext";
+import { normalizarListaObras, obtenerObraAsignada } from "../../utils/obraAsignada";
 
 const formatearFechaTabla = (f) => {
   if (!f) return "—";
@@ -63,6 +65,7 @@ const badgeTipo = (tipo) => {
 const estadoFila = (n) => (n.estado_resolucion || n.estado || "").toLowerCase();
 
 export default function Novedades() {
+  const { usuario } = useAuth();
   const [novedades, setNovedades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -180,18 +183,30 @@ export default function Novedades() {
       setLoading(true);
       setError("");
       try {
-        const [novRes, obrasRes, trabRes] = await Promise.all([
+        const [novRes, obrasRes] = await Promise.all([
           api.get("/novedades"),
           api.get("/obras"),
-          api.get("/trabajadores", { params: { limit: 500 } }),
         ]);
         if (!alive) return;
         const nov = novRes.data.data || novRes.data;
-        const obs = obrasRes.data.obras || obrasRes.data.data || obrasRes.data;
-        const tb = trabRes.data?.data?.trabajadores ?? trabRes.data?.trabajadores ?? [];
+        const obrasList = normalizarListaObras(obrasRes.data);
+        const obraAsignada = obtenerObraAsignada(obrasList, usuario);
+        const obs = obraAsignada ? [obraAsignada] : obrasList;
+
+        let tb = [];
+        if (obraAsignada?.id) {
+          const trabRes = await api.get("/trabajadores", {
+            params: { obra_id: obraAsignada.id, limit: 500 },
+          });
+          tb = trabRes.data?.data?.trabajadores ?? trabRes.data?.trabajadores ?? [];
+        }
+
         setNovedades(Array.isArray(nov) ? nov : []);
         setObras(Array.isArray(obs) ? obs : []);
         setTrabajadores(Array.isArray(tb) ? tb : []);
+        if (obraAsignada?.id) {
+          setForm((f) => ({ ...f, obra_id: String(obraAsignada.id) }));
+        }
       } catch (err) {
         if (!alive) return;
         setError(err.response?.data?.message || err.response?.data?.mensaje || err.message || "Error al cargar");
@@ -207,7 +222,7 @@ export default function Novedades() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [usuario?.id, usuario?.rol]);
 
   const maxFecha = new Date().toISOString().slice(0, 10);
 
